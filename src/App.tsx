@@ -4,7 +4,6 @@ import {
   activeTab,
   statusMessage,
   dataSummary,
-  wizardState,
   hasJson,
   setStatus,
   jsonData,
@@ -17,7 +16,6 @@ import LayerBuilder from './components/LayerBuilder';
 import LayerDetailsPanel from './components/LayerDetailsPanel';
 import FeatureDetailsPanel from './components/FeatureDetailsPanel';
 import StatusBar from './components/StatusBar';
-import WizardModal from './components/wizard/WizardModal';
 import I18nTable from './components/I18nTable';
 import TranslationKeysBrowser from './components/TranslationKeysBrowser';
 import TranslationEditorPanel from './components/TranslationEditorPanel';
@@ -260,7 +258,6 @@ function App() {
 
       <StatusBar />
       
-      {wizardState.value.isOpen && <WizardModal />}
     </div>
   );
 }

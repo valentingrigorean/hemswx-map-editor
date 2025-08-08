@@ -51,23 +51,6 @@ export interface MapLayersData {
   };
 }
 
-export interface WizardItemData {
-  id: string;
-  name: string;
-  showLegend: boolean;
-  legendUrl?: string;
-  legendDescription?: string;
-  layersIds: string[];
-}
-
-export interface WizardData {
-  featureType: 'weatherFeature' | 'feature';
-  featureId: string;
-  featureName: string;
-  presentation: 'single' | 'multiple';
-  mutuallyExclusive: boolean;
-  items: WizardItemData[];
-}
 
 export interface ValidationResult {
   valid: boolean;
@@ -95,14 +78,6 @@ export interface AppState {
   };
   selectedLayer: {
     index: number;
-  };
-  wizard: {
-    mode: 'create' | 'edit';
-    currentStep: number;
-    isOpen: boolean;
-    data: WizardData;
-    editingIndex: number;
-    editingType: 'weatherFeature' | 'feature';
   };
   ui: {
     activeTab: 'features' | 'layers' | 'tools' | 'internationalization' | 'stats';
