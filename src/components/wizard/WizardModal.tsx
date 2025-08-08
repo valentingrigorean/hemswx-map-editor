@@ -4,7 +4,8 @@ import {
   closeWizard, 
   setWizardStep,
   jsonData,
-  updateJsonData
+  updateJsonData,
+  setStatus
 } from '../../lib/jsonStore';
 import StepType from './StepType';
 import StepConfig from './StepConfig';
@@ -80,10 +81,18 @@ export default function WizardModal() {
       }))
     };
 
-    // Clean up undefined values
+    // Clean up undefined values (but preserve empty arrays)
     Object.keys(feature).forEach(key => {
-      if (feature[key as keyof typeof feature] === undefined) {
+      const value = feature[key as keyof typeof feature];
+      if (value === undefined) {
         delete feature[key as keyof typeof feature];
+      }
+    });
+
+    // Ensure layersIds are preserved for each item
+    feature.items.forEach(item => {
+      if (!item.layersIds) {
+        item.layersIds = [];
       }
     });
 
@@ -101,6 +110,7 @@ export default function WizardModal() {
     }
 
     updateJsonData(updatedData);
+    setStatus(`✅ Feature "${feature.name || feature.id}" ${wizard.mode === 'edit' ? 'updated' : 'created'} successfully`);
     closeWizard();
   };
 
