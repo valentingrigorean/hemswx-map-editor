@@ -42,7 +42,7 @@ export default function Toolbar() {
   };
 
   return (
-    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+    <div className="flex gap-2 items-center">
       <button className="btn" onClick={handleValidate}>
         Validate
       </button>

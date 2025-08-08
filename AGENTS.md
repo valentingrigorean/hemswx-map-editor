@@ -1,48 +1,39 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `index.html`: Single-page app hosting the editor UI.
-- `css/styles.css`: Styles for layout, wizard, and status pills.
-- `js/`: Vanilla JS modules
-  - `app.js`: App bootstrap and high-level actions (refresh, load, sync, prune, download).
-  - `wizard.js`: Multi-step feature wizard (create/edit, validation, save).
-  - `ui.js`: UI controller (status, summaries, stats, editor binding).
-  - `features.js`: Feature browser (lists, edit/delete hooks).
-  - `intl.js`: Internationalization status panel per locale.
-  - `state.js`: In-memory app state and wizard state.
-  - `utils.js`: Helpers (JSON parsing, id collection, slugging).
-- `map-layers.json`: Example data file used by the editor.
+- Vite + Preact + TypeScript app.
+- `src/`: application code
+  - `components/`: UI (e.g., `Toolbar.tsx`, `Editor.tsx`, `LayerBuilder.tsx`, modals).
+  - `lib/`: data/types, parsing, utils, state (signals).
+  - `styles/`: Tailwind entry (`globals.css`).
+  - Entrypoints: `main.tsx`, `App.tsx`.
+- `public/`: static assets and sample data (e.g., `map-layers.json`, `favicon.svg`).
+- `index.html`: Vite HTML template. `dist/`: build output.
+- Config: `vite.config.ts`, `tailwind.config.js`, `postcss.config.js`, `tsconfig*.json`.
 
 ## Build, Test, and Development Commands
-- Static app, no build step. Open locally or serve a folder.
-  - Quick serve: `python3 -m http.server 8000` then visit `http://localhost:8000/`.
-  - Or open `index.html` directly in a browser.
-- Manual validation in-app:
-  - Use buttons: “Validate JSON”, “Format JSON”, “Fix Missing Translations”, “Remove Unused”.
+- `npm run dev`: start Vite dev server with HMR.
+- `npm run build`: production build to `dist/`.
+- `npm run preview`: preview the built app locally.
+- `npm run deploy`: build and publish `dist/` to GitHub Pages (`gh-pages`).
 
 ## Coding Style & Naming Conventions
-- Language: Vanilla JavaScript (ES2015+), no framework.
-- Indentation: 2 spaces; include semicolons; single quotes for strings.
-- Naming: `PascalCase` for classes, `camelCase` for variables/functions.
-- Files: lowercase, concise (e.g., `utils.js`, `wizard.js`).
-- Keep DOM operations simple and contained; avoid global leakage beyond defined classes.
+- Language: TypeScript + JSX (Preact). Prefer functional components and hooks/signals.
+- Indentation: 2 spaces; include semicolons; prefer single quotes.
+- Naming: `PascalCase` for components/types; `camelCase` for variables/functions; files in `components/` use `PascalCase.tsx`, utilities in `lib/` use `camelCase.ts`.
+- Keep side effects and DOM access inside components or `lib` helpers; avoid global state outside signals in `lib/jsonStore`.
 
 ## Testing Guidelines
-- No automated tests yet; rely on manual flows:
-  - Load `map-layers.json` via drag-and-drop or file picker.
-  - Create/edit a feature in the wizard; associate layers; review validation.
-  - Check i18n tab per locale and run “Fix Missing Translations”.
-  - Download JSON and re-import to verify round-trip.
-- Aim for clear error/status messages and zero console errors.
+- No automated tests yet. Manual flow:
+  - Load JSON via “Open JSON…” or use `public/map-layers.json`.
+  - Use toolbar: Validate, Format, Fix Missing Translations, Remove Unused, Download JSON.
+  - Re-import the downloaded JSON to verify round-trip.
+  - Monitor the status bar and browser console for errors/warnings.
 
 ## Commit & Pull Request Guidelines
-- Commits: small, scoped changes with imperative subject lines (e.g., "Add layer validation to wizard").
-- PRs: include
-  - Summary of changes and rationale
-  - Screenshots/GIFs for UI changes
-  - Steps to reproduce/test (manual)
-  - Linked issue(s), if applicable
+- Commits: small, focused; imperative subject (e.g., "Add layer validation").
+- PRs: description + rationale, screenshots/GIFs for UI changes, manual test steps, and linked issues if applicable.
 
 ## Security & Configuration Tips
-- The editor runs locally and manipulates provided JSON only; avoid adding code that fetches remote resources by default.
-- Be mindful of CORS if introducing remote previews; keep them optional and configurable.
+- Runs locally; edits provided JSON only. Do not fetch remote resources by default.
+- If adding remote previews/APIs, make them opt‑in and document CORS settings.

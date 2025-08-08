@@ -1,172 +1,195 @@
-import { useSignal } from '@preact/signals';
-import { 
-  jsonData, 
-  activeTab, 
-  activeRightTab, 
-  statusMessage, 
+import { useRef } from 'preact/hooks';
+import {
+  activeTab,
+  statusMessage,
   dataSummary,
-  wizardState
+  wizardState,
+  hasJson,
+  setStatus,
+  jsonData
 } from './lib/jsonStore';
 import Editor from './components/Editor';
-import Toolbar from './components/Toolbar';
 import GroupsPanel from './components/GroupsPanel';
 import LayerBuilder from './components/LayerBuilder';
+import LayerDetailsPanel from './components/LayerDetailsPanel';
+import FeatureDetailsPanel from './components/FeatureDetailsPanel';
 import StatusBar from './components/StatusBar';
 import WizardModal from './components/wizard/WizardModal';
+import I18nTable from './components/I18nTable';
+import EmptyState from './components/EmptyState';
 import './styles/globals.css';
-import './styles/components.css';
-import './styles/wizard.css';
+import { validateJSON } from './lib/parse';
+import { formatJSON } from './lib/parse';
+import { downloadBlob } from './lib/utils';
 
-const MAIN_TABS = [
+const APP_TABS = [
   { id: 'features', label: 'Features' },
   { id: 'layers', label: 'Layers' },
-  { id: 'tools', label: 'Tools' },
   { id: 'internationalization', label: 'i18n' },
-  { id: 'stats', label: 'Stats' }
-] as const;
-
-const RIGHT_TABS = [
-  { id: 'json', label: 'JSON' },
-  { id: 'feature', label: 'Feature' },
-  { id: 'layer', label: 'Layer' }
+  { id: 'json', label: 'JSON' }
 ] as const;
 
 function App() {
-  const fileInputRef = useSignal<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleLoadFile = () => {
-    fileInputRef.value?.click();
+    fileInputRef.current?.click();
   };
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>Map Layers JSON Editor</h1>
-        <button className="btn" onClick={handleLoadFile}>
-          Open JSON…
-        </button>
-        <input 
-          ref={fileInputRef}
-          type="file" 
-          accept="application/json,.json"
-          style={{ display: 'none' }}
-          onChange={(e) => {
-            const file = (e.target as HTMLInputElement).files?.[0];
-            if (file) {
-              const reader = new FileReader();
-              reader.onload = (event) => {
-                const text = event.target?.result as string;
-                if (text) {
-                  try {
-                    const data = JSON.parse(text);
-                    jsonData.value = data;
-                    statusMessage.value = '✅ JSON file loaded successfully';
-                  } catch (error) {
-                    statusMessage.value = `❌ Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`;
-                  }
+      {/* Hidden file input always mounted to support EmptyState open */}
+      <input 
+        ref={fileInputRef as any}
+        type="file" 
+        accept="application/json,.json"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = (e.target as HTMLInputElement).files?.[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const text = event.target?.result as string;
+              if (text) {
+                try {
+                  const data = JSON.parse(text);
+                  updateJsonData(data);
+                  setStatus('✅ JSON file loaded successfully');
+                } catch (error) {
+                  setStatus(`❌ Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`);
                 }
-              };
-              reader.readAsText(file);
-            }
-          }}
-        />
-        <Toolbar />
-        <div className="quick-summary">
-          <span className="muted">{dataSummary.value}</span>
-          <div className="status muted">{statusMessage.value}</div>
-        </div>
-      </header>
+              }
+            };
+            reader.readAsText(file);
+          }
+        }}
+      />
 
-      <div className="main-layout">
-        {/* Left Column */}
-        <div className="main-column left">
-          <div className="tabs">
-            <div className="tab-buttons">
-              {MAIN_TABS.map(tab => (
-                <button
-                  key={tab.id}
-                  className={`tab-btn ${activeTab.value === tab.id ? 'active' : ''}`}
-                  onClick={() => activeTab.value = tab.id as any}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            <div className={`tab-content ${activeTab.value === 'features' ? 'active' : ''}`}>
-              <GroupsPanel />
-            </div>
-
-            <div className={`tab-content ${activeTab.value === 'layers' ? 'active' : ''}`}>
-              <LayerBuilder />
-            </div>
-
-            <div className={`tab-content ${activeTab.value === 'tools' ? 'active' : ''}`}>
-              <div className="tools-section">
-                <h3>Validation & Cleanup</h3>
-                <div className="tools-grid">
-                  <button className="btn tool-btn">Validate</button>
-                  <button className="btn tool-btn">Fix Missing Translations</button>
-                  <button className="btn tool-btn">Remove Unused</button>
-                  <button className="btn tool-btn">Format</button>
-                </div>
-              </div>
-            </div>
-
-            <div className={`tab-content ${activeTab.value === 'internationalization' ? 'active' : ''}`}>
-              <div className="text-center muted p-4">
-                Internationalization panel coming soon
-              </div>
-            </div>
-
-            <div className={`tab-content ${activeTab.value === 'stats' ? 'active' : ''}`}>
-              <div className="text-center muted p-4">
-                Stats panel coming soon
-              </div>
-            </div>
+      {hasJson.value && (
+        <header
+          className="flex gap-3 items-center p-3 border-b border-slate-700 sticky top-0 z-[5]"
+          style={{ background: 'rgba(15, 17, 21, 0.9)', backdropFilter: 'saturate(1.2) blur(6px)' }}
+        >
+          <h1 className="text-base m-0 mr-2 opacity-95">Map Layers JSON Editor</h1>
+          <button className="btn" onClick={handleLoadFile}>
+            Open JSON…
+          </button>
+          <div className="ml-auto flex flex-col items-end gap-1">
+            {hasJson.value && <span className="text-slate-500">{dataSummary.value}</span>}
+            <div className="text-xs max-w-[300px] text-right text-slate-500">{statusMessage.value}</div>
           </div>
-        </div>
+        </header>
+      )}
 
-        {/* Right Column */}
-        <div className="main-column right">
-          <div className="right-tab-buttons">
-            {RIGHT_TABS.map(tab => (
+      {!hasJson.value ? (
+        <div className="p-6">
+          <EmptyState onOpenClick={handleLoadFile} />
+        </div>
+      ) : (
+        <div className="p-3 min-h-[calc(100vh-80px)]">
+          {/* App Tabs */}
+          <div className="flex gap-1 mb-3 border-b border-slate-700 pb-2">
+            {APP_TABS.map((tab) => (
               <button
                 key={tab.id}
-                className={`right-tab-btn ${activeRightTab.value === tab.id ? 'active' : ''}`}
-                onClick={() => activeRightTab.value = tab.id as any}
+                className={`px-4 py-2 rounded-t-md text-xs transition-all duration-150 text-decoration-none ${
+                  activeTab.value === tab.id
+                    ? 'bg-blue-500 text-white border-blue-500'
+                    : 'bg-slate-950 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
+                }`}
+                onClick={() => (activeTab.value = tab.id as any)}
               >
                 {tab.label}
               </button>
             ))}
           </div>
 
-          <div className={`tab-content ${activeRightTab.value === 'json' ? 'active' : ''}`}>
-            <div className="toolbar">
-              <span className="muted">JSON (editable)</span>
+          {/* Tab Views */}
+          {/* Features: split view */}
+          {activeTab.value === 'features' && (
+            <div className="flex gap-3">
+              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                <GroupsPanel />
+              </div>
+              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                <FeatureDetailsPanel />
+              </div>
             </div>
-            <Editor />
-          </div>
+          )}
 
-          <div className={`tab-content ${activeRightTab.value === 'feature' ? 'active' : ''}`}>
-            <div className="toolbar">
-              <span className="muted">Selected Feature</span>
+          {/* Layers: split view */}
+          {activeTab.value === 'layers' && (
+            <div className="flex gap-3">
+              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                <LayerBuilder />
+              </div>
+              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                <LayerDetailsPanel />
+              </div>
             </div>
-            <div className="text-center muted p-4">
-              Select a feature to preview its JSON
-            </div>
-          </div>
+          )}
 
-          <div className={`tab-content ${activeRightTab.value === 'layer' ? 'active' : ''}`}>
-            <div className="toolbar">
-              <span className="muted">Selected Layer</span>
+          {/* i18n: single view */}
+          {activeTab.value === 'internationalization' && (
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
+              <I18nTable />
             </div>
-            <div className="text-center muted p-4">
-              Select a layer to preview its JSON
+          )}
+
+          {/* JSON: full editor */}
+          {activeTab.value === 'json' && (
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
+              <div className="flex flex-wrap gap-2 mb-3 items-center">
+                <span className="text-slate-500">JSON (editable)</span>
+                <div className="ml-auto flex gap-2">
+                  <button
+                    className="btn small"
+                    onClick={() => {
+                      const validation = validateJSON(JSON.stringify(jsonData.value));
+                      if (validation.valid) {
+                        setStatus('✅ JSON is valid');
+                      } else {
+                        setStatus(`❌ Validation failed: ${validation.errors.length} error(s), ${validation.warnings.length} warning(s)`);
+                      }
+                    }}
+                  >
+                    Validate
+                  </button>
+                  <button
+                    className="btn small"
+                    onClick={() => {
+                      try {
+                        formatJSON(jsonData.value);
+                        setStatus('✅ JSON formatted');
+                      } catch (error) {
+                        setStatus('❌ Could not format JSON');
+                      }
+                    }}
+                  >
+                    Format
+                  </button>
+                  <button
+                    className="btn success small"
+                    onClick={() => {
+                      try {
+                        const jsonString = JSON.stringify(jsonData.value, null, 2);
+                        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+                        downloadBlob(`map-layers-${timestamp}.json`, jsonString);
+                        setStatus('✅ JSON file downloaded');
+                      } catch (error) {
+                        setStatus('❌ Download failed');
+                      }
+                    }}
+                  >
+                    Download
+                  </button>
+                </div>
+              </div>
+              <Editor />
             </div>
-          </div>
+          )}
         </div>
-      </div>
+      )}
 
       <StatusBar />
       

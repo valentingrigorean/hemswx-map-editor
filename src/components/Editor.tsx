@@ -89,7 +89,7 @@ export default function Editor() {
   return (
     <div>
       <textarea
-        className={`json-editor ${hasErrors.value ? 'error' : ''}`}
+        className={hasErrors.value ? 'json-editor border-red-500' : 'json-editor'}
         value={editorText.value}
         onInput={handleChange}
         onDrop={handleDrop}
@@ -97,22 +97,12 @@ export default function Editor() {
         onPaste={handlePaste}
         placeholder="Paste JSON or drop a file…"
         spellcheck={false}
-        style={{
-          borderColor: hasErrors.value ? 'var(--bad)' : undefined
-        }}
       />
       
       {validationErrors.value.length > 0 && (
-        <div style={{ 
-          marginTop: '8px', 
-          padding: '8px', 
-          background: 'var(--bad)', 
-          color: 'white', 
-          borderRadius: '6px',
-          fontSize: '12px'
-        }}>
+        <div className="mt-2 p-2 bg-red-500 text-white rounded text-xs">
           <strong>Validation Errors:</strong>
-          <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
+          <ul className="mt-1 ml-4 p-0">
             {validationErrors.value.map((error, i) => (
               <li key={i}>{error}</li>
             ))}

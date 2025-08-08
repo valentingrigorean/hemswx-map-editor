@@ -1,5 +1,5 @@
 import { signal, computed } from '@preact/signals';
-import { MapLayersData, WizardData, AppState } from './types';
+import { MapLayersData, WizardData, AppState, LayerConfig, MapFeature } from './types';
 import { getDefaultData } from './utils';
 import { recomputeStats, summarizeData } from './parse';
 import { syncTranslations, pruneTranslations } from './intl';
@@ -16,11 +16,21 @@ const createDefaultWizardData = (): WizardData => ({
 
 // Core data signals
 export const jsonData = signal<MapLayersData>(getDefaultData());
+// Tracks whether the user has provided JSON (file/open/paste/drop)
+export const hasJson = signal<boolean>(false);
 export const selectedFeature = signal<{ type: 'weatherFeatures' | 'features' | null; index: number }>({
   type: null,
   index: -1
 });
 export const selectedLayer = signal<{ index: number }>({ index: -1 });
+
+// Drafts for preserving unsaved edits by selection
+// Use simple object maps for reactivity (avoid mutating Map in place)
+export const layerDrafts = signal<Record<number | string, LayerConfig>>({});
+export const featureDrafts = signal<{
+  weatherFeatures: Record<number, MapFeature>;
+  features: Record<number, MapFeature>;
+}>({ weatherFeatures: {}, features: {} });
 
 // UI state signals
 export const activeTab = signal<'features' | 'layers' | 'tools' | 'internationalization' | 'stats'>('features');
@@ -68,6 +78,7 @@ export const selectedLayerData = computed(() => {
 // Actions
 export const updateJsonData = (newData: MapLayersData) => {
   jsonData.value = newData;
+  hasJson.value = true;
   // Clear selections if they're out of bounds
   const selection = selectedFeature.value;
   if (selection.type && selection.index >= 0) {
@@ -101,6 +112,35 @@ export const selectFeature = (type: 'weatherFeatures' | 'features', index: numbe
 export const selectLayer = (index: number) => {
   selectedLayer.value = { index };
   activeRightTab.value = 'layer';
+};
+
+// Draft helpers
+export const getLayerDraft = (key: number | 'new') => layerDrafts.value[key];
+export const setLayerDraft = (key: number | 'new', draft: LayerConfig) => {
+  layerDrafts.value = { ...layerDrafts.value, [key]: draft } as any;
+};
+export const clearLayerDraft = (key: number | 'new') => {
+  const next = { ...layerDrafts.value } as any;
+  delete next[key];
+  layerDrafts.value = next;
+};
+
+export const getFeatureDraft = (type: 'weatherFeatures' | 'features', index: number) => {
+  return featureDrafts.value[type][index];
+};
+export const setFeatureDraft = (type: 'weatherFeatures' | 'features', index: number, draft: MapFeature) => {
+  featureDrafts.value = {
+    ...featureDrafts.value,
+    [type]: {
+      ...featureDrafts.value[type],
+      [index]: draft
+    }
+  };
+};
+export const clearFeatureDraft = (type: 'weatherFeatures' | 'features', index: number) => {
+  const nextType = { ...featureDrafts.value[type] } as any;
+  delete nextType[index];
+  featureDrafts.value = { ...featureDrafts.value, [type]: nextType };
 };
 
 export const openWizard = (mode: 'create' | 'edit' = 'create', featureType: 'weatherFeature' | 'feature' = 'weatherFeature', featureIndex = -1) => {

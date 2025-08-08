@@ -15,20 +15,7 @@ export default function StatusBar() {
   }
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      background: 'var(--panel)',
-      borderTop: '1px solid var(--border)',
-      padding: '8px 12px',
-      fontSize: '12px',
-      display: 'flex',
-      gap: '12px',
-      alignItems: 'center',
-      zIndex: 10
-    }}>
+    <div className="fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 p-2 px-3 text-xs flex gap-3 items-center z-10">
       {missingLayersCount > 0 && (
         <span className={`pill ${missingLayersCount > 0 ? 'bad' : 'ok'}`}>
           Missing layers: {missingLayersCount}
@@ -48,13 +35,13 @@ export default function StatusBar() {
       ))}
 
       {stats.value.missingLayers.length > 0 && (
-        <div className="muted" style={{ fontSize: '10px' }}>
+        <div className="text-slate-500 text-[10px]">
           Missing: {stats.value.missingLayers.join(', ')}
         </div>
       )}
       
       {stats.value.unusedLayers.length > 0 && (
-        <div className="muted" style={{ fontSize: '10px' }}>
+        <div className="text-slate-500 text-[10px]">
           Unused: {stats.value.unusedLayers.join(', ')}
         </div>
       )}

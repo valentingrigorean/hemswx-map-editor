@@ -4,7 +4,7 @@ import {
   selectedFeature, 
   selectFeature, 
   deleteFeature, 
-  openWizard 
+  openWizard
 } from '../lib/jsonStore';
 
 interface FeatureItemProps {
@@ -84,7 +84,7 @@ function FeatureCategory({ title, type, features }: FeatureCategoryProps) {
       <summary className="feature-category-header">{title}</summary>
       <div className="feature-category-content">
         {features.length === 0 ? (
-          <div style={{ padding: '12px', color: 'var(--muted)', textAlign: 'center' }}>
+          <div className="p-3 text-slate-500 text-center">
             No {title.toLowerCase()} found
           </div>
         ) : (
@@ -110,44 +110,9 @@ export default function GroupsPanel() {
     openWizard('create', 'weatherFeature');
   };
 
-  const handleDrop = (e: DragEvent) => {
-    e.preventDefault();
-    const files = Array.from(e.dataTransfer?.files || []);
-    const jsonFile = files.find(f => f.type === 'application/json' || f.name.endsWith('.json'));
-    
-    if (jsonFile) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        if (text) {
-          try {
-            const data = JSON.parse(text);
-            jsonData.value = data;
-          } catch (error) {
-            console.error('Invalid JSON file:', error);
-          }
-        }
-      };
-      reader.readAsText(jsonFile);
-    }
-  };
-
-  const handleDragOver = (e: DragEvent) => {
-    e.preventDefault();
-  };
-
   return (
     <div>
-      <div 
-        className="dropzone"
-        onDrop={handleDrop}
-        onDragOver={handleDragOver}
-      >
-        <strong>Drop your JSON here</strong><br/>
-        or click <span className="pill warn">Open JSON…</span>
-      </div>
-
-      <div style={{ marginBottom: '12px' }}>
+      <div className="mb-3">
         <button className="btn primary" onClick={handleCreateFeature}>
           🧙‍♂️ Create Feature
         </button>
