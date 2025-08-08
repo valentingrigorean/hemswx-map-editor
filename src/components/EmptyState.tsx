@@ -52,7 +52,9 @@ export default function EmptyState({ onOpenClick }: EmptyStateProps) {
       >
         <h2 className="text-lg mb-2 text-slate-100">Drop your JSON here</h2>
         <p className="mb-4 text-slate-400">or</p>
-        <button className="btn primary" onClick={onOpenClick}>Click to Open JSON…</button>
+        <div className="flex flex-col gap-2 items-center">
+          <button className="btn primary" onClick={onOpenClick}>Click to Open JSON…</button>
+        </div>
         <div className="mt-4 text-xs text-slate-500">Tip: You can also paste JSON here</div>
       </div>
     </div>

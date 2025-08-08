@@ -1,4 +1,4 @@
-import { useRef } from 'preact/hooks';
+import { useRef, useEffect } from 'preact/hooks';
 import { useSignal } from '@preact/signals';
 import {
   activeTab,
@@ -8,7 +8,8 @@ import {
   hasJson,
   setStatus,
   jsonData,
-  updateJsonData
+  updateJsonData,
+  loadLastJsonData
 } from './lib/jsonStore';
 import JsonEditor from './components/JsonEditor';
 import GroupsPanel from './components/GroupsPanel';
@@ -20,6 +21,7 @@ import WizardModal from './components/wizard/WizardModal';
 import I18nTable from './components/I18nTable';
 import TranslationKeysBrowser from './components/TranslationKeysBrowser';
 import TranslationEditorPanel from './components/TranslationEditorPanel';
+import SettingsPanel from './components/SettingsPanel';
 import EmptyState from './components/EmptyState';
 import './styles/globals.css';
 import { validateJSON } from './lib/parse';
@@ -30,13 +32,21 @@ const APP_TABS = [
   { id: 'features', label: 'Features' },
   { id: 'layers', label: 'Layers' },
   { id: 'internationalization', label: 'i18n' },
-  { id: 'json', label: 'JSON' }
+  { id: 'json', label: 'JSON' },
+  { id: 'settings', label: 'Settings' }
 ] as const;
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedTranslationKey = useSignal<string | null>(null);
   const i18nViewMode = useSignal<'split' | 'table'>('split');
+
+  // Auto-load last session on app start
+  useEffect(() => {
+    if (!hasJson.value) {
+      loadLastJsonData();
+    }
+  }, []);
 
   const handleLoadFile = () => {
     fileInputRef.current?.click();
@@ -164,14 +174,16 @@ function App() {
 
               {/* Split view */}
               {i18nViewMode.value === 'split' && (
-                <div className="flex gap-3">
-                  <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
-                    <TranslationKeysBrowser 
-                      selectedKey={selectedTranslationKey.value}
-                      onSelectKey={(key) => selectedTranslationKey.value = key}
-                    />
+                <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
+                  <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
+                    <div className="flex-1 min-h-0 overflow-auto">
+                      <TranslationKeysBrowser 
+                        selectedKey={selectedTranslationKey.value}
+                        onSelectKey={(key) => selectedTranslationKey.value = key}
+                      />
+                    </div>
                   </div>
-                  <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                  <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
                     <TranslationEditorPanel selectedKey={selectedTranslationKey.value} />
                   </div>
                 </div>
@@ -179,8 +191,10 @@ function App() {
 
               {/* Table view */}
               {i18nViewMode.value === 'table' && (
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
-                  <I18nTable />
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col h-[calc(100vh-200px)]">
+                  <div className="flex-1 min-h-0">
+                    <I18nTable />
+                  </div>
                 </div>
               )}
             </div>
@@ -232,6 +246,13 @@ function App() {
                   Download JSON
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Settings: single panel */}
+          {activeTab.value === 'settings' && (
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
+              <SettingsPanel />
             </div>
           )}
         </div>

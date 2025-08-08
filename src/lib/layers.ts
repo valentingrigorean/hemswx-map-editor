@@ -1,56 +1,37 @@
-import { MapLayersData, LayerConfig } from './types';
+import { MapLayersData, LayerConfig, LayerEntry } from './types';
 import { collectReferencedLayerIds } from './utils';
 
-export const LAYER_TYPES = ['wms', 'tiled', 'mapImage', 'portalItem'] as const;
+export const LAYER_TYPES = ['wms', 'tiled', 'mapImage', 'portalItem', 'vectorTiled', 'feature'] as const;
 export type LayerType = typeof LAYER_TYPES[number];
 
-export const getDefaultLayerConfig = (type: LayerType, id: string): LayerConfig => {
-  const base: LayerConfig = {
-    id,
-    type,
-    opacity: 1,
-    zIndex: 0
-  };
-  
+export const getDefaultLayerConfig = (type: LayerType): LayerConfig => {
+  const base: LayerConfig = { type, opacity: 1, zIndex: 0 };
   switch (type) {
     case 'wms':
-      return {
-        ...base,
-        source: 'https://example.com/wms',
-        layerNames: ''
-      };
+      return { ...base, source: 'https://example.com/wms', options: { layerNames: ['layer1'] } };
     case 'tiled':
-      return {
-        ...base,
-        source: 'https://example.com/tiles/{z}/{y}/{x}.png'
-      };
+      return { ...base, source: 'https://example.com/tiles/{z}/{y}/{x}.png' };
+    case 'vectorTiled':
+      return { ...base, source: 'https://example.com/vectortiles/{z}/{y}/{x}.pbf' };
     case 'mapImage':
-      return {
-        ...base,
-        source: 'https://example.com/arcgis/rest/services/MapServer'
-      };
+      return { ...base, source: 'https://example.com/arcgis/rest/services/MapServer' };
+    case 'feature':
+      return { ...base, source: 'https://example.com/arcgis/rest/services/FeatureServer/0' };
     case 'portalItem':
-      return {
-        ...base,
-        source: 'portal-item-id',
-        options: {
-          layerId: '0'
-        }
-      };
+      return { ...base, source: 'portal-item-id', options: { layerId: 0 } };
     default:
       return base;
   }
 };
 
+export const getDefaultLayerEntry = (id = ''): LayerEntry => ({
+  id,
+  layers: [getDefaultLayerConfig('wms')]
+});
+
 export const validateLayer = (layer: LayerConfig): { valid: boolean; errors: string[] } => {
   const errors: string[] = [];
-  
-  if (!layer.id || layer.id.trim() === '') {
-    errors.push('Layer ID is required and cannot be empty');
-  } else if (!/^[a-zA-Z0-9_-]+$/.test(layer.id.trim())) {
-    errors.push('Layer ID can only contain letters, numbers, hyphens, and underscores');
-  }
-  
+
   if (!LAYER_TYPES.includes(layer.type as LayerType)) {
     errors.push(`Invalid layer type "${layer.type}". Must be one of: ${LAYER_TYPES.join(', ')}`);
   }
@@ -68,8 +49,11 @@ export const validateLayer = (layer: LayerConfig): { valid: boolean; errors: str
     }
   }
   
-  if (layer.type === 'wms' && (!layer.layerNames || layer.layerNames.trim() === '')) {
-    errors.push('WMS layers require layerNames (comma-separated list of layer names to include)');
+  if (layer.type === 'wms') {
+    const layerNames = layer.options?.layerNames;
+    if (!layerNames || !Array.isArray(layerNames) || layerNames.length === 0) {
+      errors.push('WMS layers require layerNames array in options (list of layer names to include)');
+    }
   }
   
   if (layer.opacity !== undefined && (layer.opacity < 0 || layer.opacity > 1)) {
@@ -80,25 +64,37 @@ export const validateLayer = (layer: LayerConfig): { valid: boolean; errors: str
     errors.push('Z-Index must be a whole number (determines layer stacking order)');
   }
   
-  return {
-    valid: errors.length === 0,
-    errors
-  };
+  return { valid: errors.length === 0, errors };
 };
 
-export const upsertLayer = (data: MapLayersData, layer: LayerConfig): MapLayersData => {
-  const updatedData = { ...data };
-  const existingIndex = updatedData.layers.findIndex(l => l.id === layer.id);
-  
-  if (existingIndex >= 0) {
-    // Update existing layer
-    updatedData.layers = [...updatedData.layers];
-    updatedData.layers[existingIndex] = layer;
-  } else {
-    // Add new layer
-    updatedData.layers = [...updatedData.layers, layer];
+export const validateLayerEntry = (entry: LayerEntry): { valid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+  if (!entry.id || entry.id.trim() === '') {
+    errors.push('Layer ID is required and cannot be empty');
+  } else if (!/^[a-zA-Z0-9_-]+$/.test(entry.id.trim())) {
+    errors.push('Layer ID can only contain letters, numbers, hyphens, and underscores');
   }
-  
+  if (!entry.layers || entry.layers.length === 0) {
+    errors.push('Layer must contain at least one sublayer');
+  }
+  entry.layers.forEach((l, idx) => {
+    const r = validateLayer(l);
+    if (!r.valid) {
+      errors.push(...r.errors.map(e => `Sublayer ${idx + 1}: ${e}`));
+    }
+  });
+  return { valid: errors.length === 0, errors };
+};
+
+export const upsertLayerEntry = (data: MapLayersData, entry: LayerEntry): MapLayersData => {
+  const updatedData = { ...data };
+  const existingIndex = updatedData.layers.findIndex(l => l.id === entry.id);
+  if (existingIndex >= 0) {
+    updatedData.layers = [...updatedData.layers];
+    updatedData.layers[existingIndex] = entry;
+  } else {
+    updatedData.layers = [...updatedData.layers, entry];
+  }
   return updatedData;
 };
 

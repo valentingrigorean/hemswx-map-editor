@@ -1,5 +1,5 @@
 import { signal, computed } from '@preact/signals';
-import { MapLayersData, WizardData, AppState, LayerConfig, MapFeature } from './types';
+import { MapLayersData, WizardData, AppState, LayerEntry, MapFeature } from './types';
 import { getDefaultData } from './utils';
 import { recomputeStats, summarizeData } from './parse';
 import { syncTranslations, pruneTranslations } from './intl';
@@ -26,7 +26,7 @@ export const selectedLayer = signal<{ index: number }>({ index: -1 });
 
 // Drafts for preserving unsaved edits by selection
 // Use simple object maps for reactivity (avoid mutating Map in place)
-export const layerDrafts = signal<Record<number | string, LayerConfig>>({});
+export const layerDrafts = signal<Record<number | string, LayerEntry>>({});
 export const featureDrafts = signal<{
   weatherFeatures: Record<number, MapFeature>;
   features: Record<number, MapFeature>;
@@ -79,6 +79,14 @@ export const selectedLayerData = computed(() => {
 export const updateJsonData = (newData: MapLayersData) => {
   jsonData.value = newData;
   hasJson.value = true;
+  
+  // Save to localStorage
+  try {
+    localStorage.setItem('hemswx-last-json-data', JSON.stringify(newData));
+  } catch (error) {
+    console.warn('Failed to save JSON data to localStorage:', error);
+  }
+  
   // Clear selections if they're out of bounds
   const selection = selectedFeature.value;
   if (selection.type && selection.index >= 0) {
@@ -92,6 +100,23 @@ export const updateJsonData = (newData: MapLayersData) => {
   if (layerSelection.index >= 0 && layerSelection.index >= newData.layers.length) {
     selectedLayer.value = { index: -1 };
   }
+};
+
+// Load last JSON data from localStorage
+export const loadLastJsonData = () => {
+  try {
+    const stored = localStorage.getItem('hemswx-last-json-data');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      updateJsonData(parsed);
+      setStatus('✅ Last session data loaded');
+      return true;
+    }
+  } catch (error) {
+    console.warn('Failed to load JSON data from localStorage:', error);
+    setStatus('⚠️ Failed to load last session data');
+  }
+  return false;
 };
 
 export const setStatus = (message: string) => {
@@ -116,7 +141,7 @@ export const selectLayer = (index: number) => {
 
 // Draft helpers
 export const getLayerDraft = (key: number | 'new') => layerDrafts.value[key];
-export const setLayerDraft = (key: number | 'new', draft: LayerConfig) => {
+export const setLayerDraft = (key: number | 'new', draft: LayerEntry) => {
   layerDrafts.value = { ...layerDrafts.value, [key]: draft } as any;
 };
 export const clearLayerDraft = (key: number | 'new') => {
@@ -230,7 +255,97 @@ export const deleteFeature = (type: 'weatherFeatures' | 'features', index: numbe
   setStatus('✅ Feature deleted');
 };
 
-export const deleteLayer = (index: number) => {
+// Reorder a feature within the same category
+export const reorderFeature = (
+  type: 'weatherFeatures' | 'features',
+  fromIndex: number,
+  toIndex: number
+) => {
+  const arr = [...jsonData.value[type]];
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= arr.length ||
+    toIndex >= arr.length
+  ) {
+    return;
+  }
+
+  const [moved] = arr.splice(fromIndex, 1);
+  arr.splice(toIndex, 0, moved);
+
+  const updated = { ...jsonData.value, [type]: arr } as MapLayersData;
+  updateJsonData(updated);
+
+  // Maintain selection on moved item
+  if (selectedFeature.value.type === type) {
+    let selIdx = selectedFeature.value.index;
+    if (selIdx === fromIndex) selIdx = toIndex;
+    else if (fromIndex < selIdx && selIdx <= toIndex) selIdx -= 1;
+    else if (toIndex <= selIdx && selIdx < fromIndex) selIdx += 1;
+    selectedFeature.value = { type, index: selIdx };
+  }
+
+  setStatus('✅ Feature reordered');
+};
+
+// Move feature between categories (Weather ⇄ General)
+export const moveFeatureCategory = (
+  fromType: 'weatherFeatures' | 'features',
+  index: number,
+  toType: 'weatherFeatures' | 'features'
+) => {
+  if (fromType === toType) return;
+
+  const updated: MapLayersData = JSON.parse(JSON.stringify(jsonData.value));
+  const [moved] = updated[fromType].splice(index, 1);
+  updated[toType].push(moved);
+
+  updateJsonData(updated);
+
+  // Select the moved feature at its new position
+  const newIndex = updated[toType].length - 1;
+  selectedFeature.value = { type: toType, index: newIndex };
+
+  setStatus(`✅ Moved feature to ${toType === 'weatherFeatures' ? 'Weather' : 'General'}`);
+};
+
+// Move feature to a specific index across categories
+export const moveFeatureToIndex = (
+  fromType: 'weatherFeatures' | 'features',
+  fromIndex: number,
+  toType: 'weatherFeatures' | 'features',
+  toIndex: number
+) => {
+  const src = [...jsonData.value[fromType]];
+  const dst = fromType === toType ? src : [...jsonData.value[toType]];
+
+  if (
+    fromIndex < 0 || fromIndex >= src.length ||
+    toIndex < 0 || toIndex > dst.length
+  ) {
+    return;
+  }
+
+  const [moved] = src.splice(fromIndex, 1);
+  // Adjust target index if moving within same array and fromIndex < toIndex
+  const adjustedToIndex = (fromType === toType && fromIndex < toIndex) ? toIndex - 1 : toIndex;
+  dst.splice(adjustedToIndex, 0, moved);
+
+  const updated: MapLayersData = {
+    ...jsonData.value,
+    [fromType]: fromType === toType ? dst : src,
+    [toType]: dst
+  } as any;
+
+  updateJsonData(updated);
+
+  selectedFeature.value = { type: toType, index: adjustedToIndex };
+  setStatus('✅ Feature moved');
+};
+
+export const deleteLayerByIndex = (index: number) => {
   const updated = { ...jsonData.value };
   updated.layers = updated.layers.filter((_, i) => i !== index);
   updateJsonData(updated);

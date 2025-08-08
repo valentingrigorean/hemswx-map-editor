@@ -1,5 +1,6 @@
 import { useComputed, useSignal } from '@preact/signals';
 import { wizardState, updateWizardData, jsonData } from '../../lib/jsonStore';
+import { isCustomLogicLayer } from '../../lib/settings';
 
 export default function StepLayers() {
   const wizard = wizardState.value;
@@ -137,8 +138,19 @@ export default function StepLayers() {
                       />
                       <label htmlFor={`layer-${itemIndex}-${layerIndex}`}>
                         <div className="layer-info">
-                          <div className="layer-id" style={{ fontWeight: '500', fontSize: '13px' }}>
+                          <div className="layer-id" style={{ fontWeight: '500', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             {layer.id}
+                            {isCustomLogicLayer(layer.id) && (
+                              <span style={{ 
+                                fontSize: '9px', 
+                                backgroundColor: '#2563eb', 
+                                color: 'white', 
+                                padding: '1px 4px', 
+                                borderRadius: '2px' 
+                              }}>
+                                referenced
+                              </span>
+                            )}
                           </div>
                           <div className="layer-details" style={{ fontSize: '10px', opacity: 0.7, marginTop: '2px' }}>
                             <div>{info.types} • {info.layerCount} sublayer{info.layerCount !== 1 ? 's' : ''}</div>

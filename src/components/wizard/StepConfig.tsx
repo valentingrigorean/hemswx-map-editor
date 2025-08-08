@@ -52,20 +52,22 @@ export default function StepConfig() {
         </select>
       </div>
       
-      <div className="form-group">
-        <label className="form-label">
-          <input 
-            type="checkbox" 
-            className="form-checkbox"
-            checked={data.mutuallyExclusive}
-            onChange={(e) => handleChange('mutuallyExclusive', (e.target as HTMLInputElement).checked)}
-          />
-          Mutually Exclusive Items
-        </label>
-        <div className="form-help">
-          When one item is selected, others are automatically deselected.
+      {data.presentation === 'multiple' && (
+        <div className="form-group">
+          <label className="form-label">
+            <input 
+              type="checkbox" 
+              className="form-checkbox"
+              checked={data.mutuallyExclusive}
+              onChange={(e) => handleChange('mutuallyExclusive', (e.target as HTMLInputElement).checked)}
+            />
+            Mutually Exclusive Items
+          </label>
+          <div className="form-help">
+            When one item is selected, others are automatically deselected.
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

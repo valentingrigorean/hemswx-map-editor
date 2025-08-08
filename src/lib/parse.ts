@@ -1,5 +1,6 @@
 import { MapLayersData, ValidationResult, StatsData } from './types';
 import { safeParse, collectItemIds, collectReferencedLayerIds } from './utils';
+import { settings } from './settings';
 
 export const validateJSON = (text: string): ValidationResult => {
   const [parsed, parseError] = safeParse(text);
@@ -69,8 +70,13 @@ export const recomputeStats = (data: MapLayersData): StatsData => {
   try {
     const usedLayers = collectReferencedLayerIds(data);
     const definedLayers = new Set((data.layers || []).map(x => x.id));
+    
+    // Also consider layers marked as "referenced" in settings as used
+    const referencedInSettings = settings.value.customLogicLayers;
+    const allUsedLayers = new Set([...usedLayers, ...referencedInSettings]);
+    
     const missingLayers = [...usedLayers].filter(x => !definedLayers.has(x));
-    const unusedLayers = [...definedLayers].filter(x => !usedLayers.has(x));
+    const unusedLayers = [...definedLayers].filter(x => !allUsedLayers.has(x));
     
     const keys = collectItemIds(data);
     const langs = Object.keys(data.intl || {});

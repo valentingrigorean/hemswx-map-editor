@@ -7,9 +7,11 @@ import {
   updateJsonData,
   getFeatureDraft,
   setFeatureDraft,
-  clearFeatureDraft
+  clearFeatureDraft,
+  selectFeature
 } from '../lib/jsonStore';
 import { MapFeature } from '../lib/types';
+import { isCustomLogicLayer } from '../lib/settings';
 import JsonEditor from './JsonEditor';
 
 interface LayerMultiSelectProps {
@@ -100,17 +102,24 @@ function LayerSelectionModal({ isOpen, selectedLayerIds, onClose, onSave }: Laye
             <div className="p-4 text-center text-slate-500">No layers available</div>
           ) : (
             <div className="space-y-1">
-              {sortedLayers.value.map(layer => (
-                <label key={layer.id} className="flex items-center gap-3 p-2 hover:bg-slate-700 rounded cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="form-checkbox"
-                    checked={tempSelection.value.includes(layer.id)}
-                    onChange={() => toggleLayer(layer.id)}
-                  />
+              {sortedLayers.value.map(layer => {
+                const isSelected = tempSelection.value.includes(layer.id);
+                return (
+                  <label key={layer.id} className="flex items-center gap-3 p-2 hover:bg-slate-700 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleLayer(layer.id)}
+                    />
                   <div className="flex-1">
-                    <div className={`text-sm ${!layer.isAssigned ? 'text-green-300 font-medium' : 'text-slate-200'}`}>
+                    <div className={`text-sm ${!layer.isAssigned ? 'text-green-300 font-medium' : 'text-slate-200'} flex items-center gap-2`}>
                       {layer.title}
+                      {isCustomLogicLayer(layer.id) && (
+                        <span className="text-xs bg-blue-600 text-white px-1.5 py-0.5 rounded">
+                          referenced
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-slate-500">
                       ID: {layer.id}
@@ -119,7 +128,8 @@ function LayerSelectionModal({ isOpen, selectedLayerIds, onClose, onSave }: Laye
                     </div>
                   </div>
                 </label>
-              ))}
+              );
+              })}
             </div>
           )}
         </div>
@@ -139,25 +149,22 @@ function LayerSelectionModal({ isOpen, selectedLayerIds, onClose, onSave }: Laye
 
 function LayerMultiSelect({ selectedLayerIds, onChange }: LayerMultiSelectProps) {
   const isModalOpen = useSignal(false);
+  // Note: selectedLayerIds is a regular prop (not a signal),
+  // so derive values directly during render to ensure updates.
   const selectedCount = selectedLayerIds.length;
-  
-  const getSelectedLayerNames = useComputed(() => {
-    if (selectedCount === 0) return 'No layers selected';
-    
-    const layers = jsonData.value.layers || [];
-    const selectedNames = selectedLayerIds
-      .map(id => {
-        const layer = layers.find(l => l.id === id);
-        return layer?.title || layer?.id || id;
-      })
-      .slice(0, 2); // Show max 2 names
-    
-    if (selectedCount <= 2) {
-      return selectedNames.join(', ');
-    } else {
-      return `${selectedNames.join(', ')} +${selectedCount - 2} more`;
-    }
-  });
+  const layers = jsonData.value.layers || [];
+  const selectedNames = selectedLayerIds
+    .map(id => {
+      const layer = layers.find(l => l.id === id);
+      return layer?.title || layer?.id || id;
+    })
+    .slice(0, 2);
+  const selectedLabel =
+    selectedCount === 0
+      ? 'No layers selected'
+      : selectedCount <= 2
+        ? selectedNames.join(', ')
+        : `${selectedNames.join(', ')} +${selectedCount - 2} more`;
 
   return (
     <>
@@ -168,7 +175,7 @@ function LayerMultiSelect({ selectedLayerIds, onChange }: LayerMultiSelectProps)
       >
         <div className="flex items-center justify-between">
           <span className={selectedCount > 0 ? 'text-slate-200' : 'text-slate-500'}>
-            {getSelectedLayerNames.value}
+            {selectedLabel}
           </span>
           <span className="text-slate-400 text-xs">
             {selectedCount > 0 && (
@@ -228,19 +235,44 @@ const getFeatureDisplayName = (feature: MapFeature | null): string => {
   return feature.id || '';
 };
 
+const createEmptyFeature = (): MapFeature => ({
+  presentation: 'single',
+  items: [{
+    id: '',
+    name: '',
+    showLegend: false,
+    layersIds: []
+  }]
+});
+
 export default function FeatureDetailsPanel() {
   const sel = selectedFeature;
   const selData = selectedFeatureData;
   const activeDetailTab = useSignal<'details' | 'json'>('details');
+  const creationMode = useSignal<{
+    active: boolean;
+    featureType: 'weatherFeatures' | 'features';
+    draft: MapFeature | null;
+  }>({
+    active: false,
+    featureType: 'weatherFeatures',
+    draft: null
+  });
 
   const draft = useComputed<MapFeature | null>(() => {
+    // If in creation mode, return the creation draft
+    if (creationMode.value.active) {
+      return creationMode.value.draft;
+    }
+    // Otherwise, return normal edit draft
     if (!sel.value.type || sel.value.index < 0) return null;
     return getFeatureDraft(sel.value.type, sel.value.index) || null;
   });
 
-  const isEditing = useComputed(() => draft.value != null);
+  const isEditing = useComputed(() => draft.value != null || creationMode.value.active);
   const working = useComputed<MapFeature | null>(() => {
     if (draft.value) return draft.value;
+    if (creationMode.value.active) return creationMode.value.draft;
     return selData.value || null;
   });
 
@@ -280,16 +312,30 @@ export default function FeatureDetailsPanel() {
   };
 
   const cancelEdit = () => {
-    if (!sel.value.type || sel.value.index < 0) return;
-    clearFeatureDraft(sel.value.type, sel.value.index);
+    if (creationMode.value.active) {
+      // Cancel creation mode
+      creationMode.value = {
+        active: false,
+        featureType: 'weatherFeatures',
+        draft: null
+      };
+    } else {
+      // Cancel normal edit mode
+      if (!sel.value.type || sel.value.index < 0) return;
+      clearFeatureDraft(sel.value.type, sel.value.index);
+    }
   };
 
   const applySave = () => {
-    if (!sel.value.type || sel.value.index < 0) return;
     const draftVal = draft.value;
     if (!draftVal) return;
 
-    // Validation
+    // Check if we're in creation mode or edit mode
+    const isCreating = creationMode.value.active;
+    
+    if (!isCreating && (!sel.value.type || sel.value.index < 0)) return;
+
+    // Enhanced Validation
     if (!draftVal.presentation || !Array.isArray(draftVal.items)) {
       setStatus('❌ Feature is missing required fields');
       return;
@@ -297,6 +343,17 @@ export default function FeatureDetailsPanel() {
 
     if (draftVal.items.length === 0) {
       setStatus('❌ Feature must have at least one item');
+      return;
+    }
+
+    // Validate feature name and ID (if provided, must not be empty strings)
+    if (draftVal.name !== undefined && draftVal.name !== null && !draftVal.name.trim()) {
+      setStatus('❌ Feature name cannot be empty string (leave blank to inherit from item)');
+      return;
+    }
+
+    if (draftVal.id !== undefined && draftVal.id !== null && !draftVal.id.trim()) {
+      setStatus('❌ Feature ID cannot be empty string (leave blank to inherit from item)');
       return;
     }
 
@@ -310,24 +367,150 @@ export default function FeatureDetailsPanel() {
       return;
     }
 
-    const updated = { ...jsonData.value } as any;
-    const arr = [...updated[sel.value.type]];
-    arr[sel.value.index] = draftVal;
-    updated[sel.value.type] = arr;
+    // Check for duplicate item IDs within the feature
+    const itemIds = draftVal.items.map(item => item.id.trim());
+    const duplicateIds = itemIds.filter((id, index) => itemIds.indexOf(id) !== index);
+    
+    if (duplicateIds.length > 0) {
+      setStatus(`❌ Duplicate item IDs found: ${[...new Set(duplicateIds)].join(', ')}`);
+      return;
+    }
+
+    // Validate layer associations - each item must have at least one layer
+    const itemsWithoutLayers = draftVal.items.filter((item, index) => 
+      !item.layersIds || item.layersIds.length === 0
+    );
+    
+    if (itemsWithoutLayers.length > 0) {
+      setStatus('❌ All items must have at least one layer assigned');
+      return;
+    }
+
+    // Validate that layer IDs exist in the layers array
+    const availableLayerIds = new Set((jsonData.value.layers || []).map(layer => layer.id));
+    const invalidLayerIds = new Set<string>();
+    
+    draftVal.items.forEach(item => {
+      (item.layersIds || []).forEach(layerId => {
+        if (!availableLayerIds.has(layerId)) {
+          invalidLayerIds.add(layerId);
+        }
+      });
+    });
+    
+    if (invalidLayerIds.size > 0) {
+      setStatus(`❌ Invalid layer IDs: ${Array.from(invalidLayerIds).join(', ')}`);
+      return;
+    }
+
+    // Create deep copy to ensure reactivity
+    const updated = JSON.parse(JSON.stringify(jsonData.value)) as any;
+    
+    if (isCreating) {
+      // Add new feature to the appropriate array
+      const featureArray = creationMode.value.featureType === 'weatherFeatures' 
+        ? updated.weatherFeatures 
+        : updated.features;
+      featureArray.push(JSON.parse(JSON.stringify(draftVal)));
+      
+      // Get the current featureType before clearing creation mode
+      const newFeatureType = creationMode.value.featureType;
+      const newFeatureIndex = featureArray.length - 1;
+      
+      // Exit creation mode
+      creationMode.value = {
+        active: false,
+        featureType: 'weatherFeatures',
+        draft: null
+      };
+      
+      // Select the newly created feature after data is updated
+      setTimeout(() => {
+        selectFeature(newFeatureType, newFeatureIndex);
+      }, 0);
+      
+      setStatus('✅ Feature created successfully');
+    } else {
+      // Update existing feature
+      updated[sel.value.type][sel.value.index] = JSON.parse(JSON.stringify(draftVal));
+      
+      // Clear draft first to ensure we're in view mode
+      clearFeatureDraft(sel.value.type, sel.value.index);
+      
+      setStatus('✅ Feature saved successfully');
+    }
+    
+    // Update the data which should trigger re-render
     updateJsonData(updated);
-    clearFeatureDraft(sel.value.type, sel.value.index);
-    setStatus('✅ Feature saved successfully');
   };
 
   const updateDraft = (changes: Partial<MapFeature>) => {
-    if (!sel.value.type || sel.value.index < 0) return;
-    const base = draft.value || (selData.value as MapFeature);
-    setFeatureDraft(sel.value.type, sel.value.index, { ...base, ...changes });
+    if (creationMode.value.active) {
+      // Update creation mode draft
+      const base = creationMode.value.draft || createEmptyFeature();
+      creationMode.value = {
+        ...creationMode.value,
+        draft: { ...base, ...changes }
+      };
+    } else {
+      // Update normal edit draft
+      if (!sel.value.type || sel.value.index < 0) return;
+      const base = draft.value || (selData.value as MapFeature);
+      setFeatureDraft(sel.value.type, sel.value.index, { ...base, ...changes });
+    }
   };
 
   const handleJsonChange = (next: MapFeature) => {
-    if (!sel.value.type || sel.value.index < 0) return;
-    setFeatureDraft(sel.value.type, sel.value.index, next);
+    if (creationMode.value.active) {
+      // Update creation mode draft
+      creationMode.value = {
+        ...creationMode.value,
+        draft: next
+      };
+    } else {
+      // Update normal edit draft
+      if (!sel.value.type || sel.value.index < 0) return;
+      setFeatureDraft(sel.value.type, sel.value.index, next);
+    }
+  };
+
+  const handleNewFeature = () => {
+    // Determine default feature type based on current selection or default to weatherFeatures
+    const defaultType = sel.value.type === 'features' ? 'features' : 'weatherFeatures';
+    
+    // Enter creation mode with empty feature
+    creationMode.value = {
+      active: true,
+      featureType: defaultType,
+      draft: createEmptyFeature()
+    };
+  };
+
+  const handleCloneFeature = () => {
+    if (!sel.value.type || sel.value.index < 0 || !working.value) return;
+    
+    const feature = working.value;
+    const featureType = sel.value.type;
+    
+    // Create cloned feature with modified names and IDs
+    const clonedFeature: MapFeature = {
+      ...feature,
+      id: feature.id ? `${feature.id}_copy` : '',
+      name: feature.name ? `${feature.name} (Copy)` : '',
+      items: (feature.items || []).map(item => ({
+        ...item,
+        id: item.id ? `${item.id}_copy` : '',
+        name: item.name ? `${item.name} (Copy)` : '',
+        layersIds: [...(item.layersIds || [])]
+      }))
+    };
+    
+    // Enter creation mode with cloned feature
+    creationMode.value = {
+      active: true,
+      featureType,
+      draft: clonedFeature
+    };
   };
 
   return (
@@ -336,21 +519,55 @@ export default function FeatureDetailsPanel() {
       <div className="flex flex-wrap gap-2 mb-3 items-center flex-shrink-0">
         <div>
           <span className="text-slate-500">
-            {isEditing.value ? 'Edit Feature' : 'Feature Details'}
+            {creationMode.value.active 
+              ? 'Create New Feature' 
+              : isEditing.value 
+                ? 'Edit Feature' 
+                : 'Feature Details'
+            }
           </span>
           {working.value && (
             <div className="text-xs text-slate-400 mt-0.5">
-              {displayName.value} {identifier.value !== displayName.value && `(${identifier.value})`}
+              {creationMode.value.active 
+                ? `New ${creationMode.value.featureType === 'weatherFeatures' ? 'Weather' : 'General'} Feature`
+                : `${displayName.value} ${identifier.value !== displayName.value && `(${identifier.value})`}`
+              }
+            </div>
+          )}
+
+          {creationMode.value.active && (
+            <div className="flex items-center gap-2 mt-2">
+              <label className="text-xs text-slate-400">Category</label>
+              <select
+                className="form-select text-xs py-1 px-2"
+                value={creationMode.value.featureType}
+                onChange={(e) => {
+                  const featureType = (e.target as HTMLSelectElement).value as 'weatherFeatures' | 'features';
+                  creationMode.value = { ...creationMode.value, featureType };
+                }}
+              >
+                <option value="weatherFeatures">Weather</option>
+                <option value="features">General</option>
+              </select>
             </div>
           )}
         </div>
         <div className="ml-auto flex gap-2">
           {!isEditing.value && sel.value.type && sel.value.index >= 0 && (
-            <button className="btn small" onClick={beginEdit}>Edit</button>
+            <>
+              <button className="btn small" onClick={handleNewFeature}>New Feature</button>
+              <button className="btn small" onClick={handleCloneFeature}>Clone Feature</button>
+              <button className="btn small" onClick={beginEdit}>Edit</button>
+            </>
+          )}
+          {!isEditing.value && (!sel.value.type || sel.value.index < 0) && (
+            <button className="btn small" onClick={handleNewFeature}>New Feature</button>
           )}
           {isEditing.value && (
             <>
-              <button className="btn success small" onClick={applySave}>Save</button>
+              <button className="btn success small" onClick={applySave}>
+                {creationMode.value.active ? 'Create Feature' : 'Save'}
+              </button>
               <button className="btn ghost small" onClick={cancelEdit}>Cancel</button>
             </>
           )}
@@ -359,7 +576,10 @@ export default function FeatureDetailsPanel() {
 
       {!working.value ? (
         <div className="text-center p-5 text-slate-500 flex-1 flex items-center justify-center">
-          Select a feature on the left to view/edit
+          {creationMode.value.active 
+            ? 'Creating new feature...' 
+            : 'Select a feature on the left to view/edit'
+          }
         </div>
       ) : (
         <>
@@ -473,22 +693,24 @@ export default function FeatureDetailsPanel() {
                     </div>
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Mutually Exclusive</label>
-                    <div>
-                      <input
-                        type="checkbox"
-                        className="form-checkbox"
-                        checked={!!working.value.mutuallyExclusive}
-                        onChange={(e) => updateDraft({ mutuallyExclusive: (e.target as HTMLInputElement).checked })}
-                        disabled={!isEditing.value}
-                      />
-                      <span className="text-slate-200 text-sm">Only one item selectable at a time</span>
+                  {working.value.presentation === 'multiple' && (
+                    <div className="form-group">
+                      <label className="form-label">Mutually Exclusive</label>
+                      <div>
+                        <input
+                          type="checkbox"
+                          className="form-checkbox"
+                          checked={!!working.value.mutuallyExclusive}
+                          onChange={(e) => updateDraft({ mutuallyExclusive: (e.target as HTMLInputElement).checked })}
+                          disabled={!isEditing.value}
+                        />
+                        <span className="text-slate-200 text-sm">Only one item selectable at a time</span>
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        When enabled, selecting one item automatically deselects others
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      When enabled, selecting one item automatically deselects others
-                    </div>
-                  </div>
+                  )}
 
                   <div className="form-group">
                     <label className="form-label">
@@ -520,8 +742,47 @@ export default function FeatureDetailsPanel() {
                     ) : (
                       <div className="space-y-2">
                         {(working.value.items || []).map((item, index) => (
-                          <div key={index} className="border border-slate-600 rounded p-3 bg-slate-900">
+                          <div 
+                            key={index} 
+                            className="border border-slate-600 rounded p-3 bg-slate-900"
+                            draggable={isEditing.value && (working.value.items || []).length > 1}
+                            onDragStart={(e) => {
+                              if (!isEditing.value) return;
+                              e.dataTransfer.setData('text/plain', index.toString());
+                              e.dataTransfer.effectAllowed = 'move';
+                            }}
+                            onDragOver={(e) => {
+                              if (!isEditing.value) return;
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = 'move';
+                            }}
+                            onDrop={(e) => {
+                              if (!isEditing.value) return;
+                              e.preventDefault();
+                              const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                              if (draggedIndex !== index) {
+                                const newItems = [...(working.value.items || [])];
+                                const draggedItem = newItems[draggedIndex];
+                                newItems.splice(draggedIndex, 1);
+                                newItems.splice(index, 0, draggedItem);
+                                updateDraft({ items: newItems });
+                              }
+                            }}
+                            style={{
+                              opacity: isEditing.value && (working.value.items || []).length > 1 ? '1' : '1',
+                              cursor: isEditing.value && (working.value.items || []).length > 1 ? 'grab' : 'default'
+                            }}
+                          >
                             <div className="flex items-center gap-2 mb-2">
+                              {isEditing.value && (working.value.items || []).length > 1 && (
+                                <div 
+                                  className="cursor-move text-slate-400 hover:text-slate-300 px-1 select-none" 
+                                  title="Drag to reorder items"
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                >
+                                  ⋮⋮
+                                </div>
+                              )}
                               <span className="text-xs text-slate-400 font-mono">#{index + 1}</span>
                               <div className="flex-1">
                                 <div className="text-sm font-medium">
@@ -534,39 +795,16 @@ export default function FeatureDetailsPanel() {
                                 </div>
                               </div>
                               {isEditing.value && (
-                                <div className="flex gap-1">
-                                  {working.value.presentation !== 'single' && (
-                                    <button
-                                      className="btn tiny"
-                                      onClick={() => {
-                                        const newItems = [...(working.value.items || [])];
-                                        const newItem = {
-                                          id: '',
-                                          name: '',
-                                          layersIds: []
-                                        };
-                                        newItems.splice(index + 1, 0, newItem);
-                                        updateDraft({ items: newItems });
-                                      }}
-                                    >
-                                      +
-                                    </button>
-                                  )}
-                                  {(working.value.items || []).length > 1 && (
-                                    <button
-                                      className="btn tiny danger"
-                                      onClick={() => {
-                                        if (confirm('Remove this item?')) {
-                                          const newItems = [...(working.value.items || [])];
-                                          newItems.splice(index, 1);
-                                          updateDraft({ items: newItems });
-                                        }
-                                      }}
-                                    >
-                                      ×
-                                    </button>
-                                  )}
-                                </div>
+                                <button
+                                  className="btn tiny danger"
+                                  onClick={() => {
+                                    const newItems = [...(working.value.items || [])];
+                                    newItems.splice(index, 1);
+                                    updateDraft({ items: newItems });
+                                  }}
+                                >
+                                  ×
+                                </button>
                               )}
                             </div>
                             
@@ -631,10 +869,14 @@ export default function FeatureDetailsPanel() {
                           </div>
                         ))}
                         
-                        {isEditing.value && working.value.presentation !== 'single' && (
+                        {working.value.presentation !== 'single' && (
                           <button
                             className="btn small w-full"
                             onClick={() => {
+                              // If not editing, start editing first
+                              if (!isEditing.value) {
+                                beginEdit();
+                              }
                               const newItem = {
                                 id: '',
                                 name: '',
@@ -656,6 +898,7 @@ export default function FeatureDetailsPanel() {
             {activeDetailTab.value === 'json' && (
               <div className="h-full min-h-0">
                 <JsonEditor
+                  key={`${sel.value.type ?? 'none'}:${sel.value.index}:${isEditing.value ? 'edit' : 'view'}`}
                   title="Selected Feature JSON"
                   value={working.value}
                   onChange={handleJsonChange}
@@ -670,4 +913,3 @@ export default function FeatureDetailsPanel() {
     </div>
   );
 }
-

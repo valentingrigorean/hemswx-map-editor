@@ -15,17 +15,23 @@ export interface MapFeature {
   items: MapLayerItem[];
 }
 
+// A single renderable layer definition (sublayer)
 export interface LayerConfig {
-  id: string;
-  type: 'wms' | 'tiled' | 'mapImage' | 'portalItem';
+  type: 'wms' | 'tiled' | 'mapImage' | 'portalItem' | 'vectorTiled' | 'feature';
   source?: string;
   opacity?: number;
   zIndex?: number;
-  layerNames?: string;
   options?: {
-    layerId?: string;
+    layerId?: string | number;
+    layerNames?: string[];
     [key: string]: any;
   };
+}
+
+// A layer entry groups one or more sublayers under a single id
+export interface LayerEntry {
+  id: string;
+  layers: LayerConfig[];
 }
 
 export interface IntlDict {
@@ -35,7 +41,7 @@ export interface IntlDict {
 export interface MapLayersData {
   weatherFeatures: MapFeature[];
   features: MapFeature[];
-  layers: LayerConfig[];
+  layers: LayerEntry[];
   intl: {
     en: IntlDict;
     da: IntlDict;
