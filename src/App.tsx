@@ -1,4 +1,5 @@
 import { useRef } from 'preact/hooks';
+import { useSignal } from '@preact/signals';
 import {
   activeTab,
   statusMessage,
@@ -6,7 +7,8 @@ import {
   wizardState,
   hasJson,
   setStatus,
-  jsonData
+  jsonData,
+  updateJsonData
 } from './lib/jsonStore';
 import Editor from './components/Editor';
 import GroupsPanel from './components/GroupsPanel';
@@ -16,6 +18,8 @@ import FeatureDetailsPanel from './components/FeatureDetailsPanel';
 import StatusBar from './components/StatusBar';
 import WizardModal from './components/wizard/WizardModal';
 import I18nTable from './components/I18nTable';
+import TranslationKeysBrowser from './components/TranslationKeysBrowser';
+import TranslationEditorPanel from './components/TranslationEditorPanel';
 import EmptyState from './components/EmptyState';
 import './styles/globals.css';
 import { validateJSON } from './lib/parse';
@@ -31,6 +35,8 @@ const APP_TABS = [
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedTranslationKey = useSignal<string | null>(null);
+  const i18nViewMode = useSignal<'split' | 'table'>('split');
 
   const handleLoadFile = () => {
     fileInputRef.current?.click();
@@ -129,10 +135,54 @@ function App() {
             </div>
           )}
 
-          {/* i18n: single view */}
+          {/* i18n: view mode toggle and content */}
           {activeTab.value === 'internationalization' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
-              <I18nTable />
+            <div>
+              {/* View mode toggle */}
+              <div className="flex gap-1 mb-3 border-b border-slate-700 pb-2">
+                <button
+                  className={`px-3 py-1.5 rounded text-xs transition-all duration-150 ${
+                    i18nViewMode.value === 'split'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
+                  }`}
+                  onClick={() => i18nViewMode.value = 'split'}
+                >
+                  Split View
+                </button>
+                <button
+                  className={`px-3 py-1.5 rounded text-xs transition-all duration-150 ${
+                    i18nViewMode.value === 'table'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-slate-800 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
+                  }`}
+                  onClick={() => i18nViewMode.value = 'table'}
+                >
+                  Table View
+                </button>
+              </div>
+
+              {/* Split view */}
+              {i18nViewMode.value === 'split' && (
+                <div className="flex gap-3">
+                  <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                    <TranslationKeysBrowser 
+                      selectedKey={selectedTranslationKey.value}
+                      onSelectKey={(key) => selectedTranslationKey.value = key}
+                    />
+                  </div>
+                  <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+                    <TranslationEditorPanel selectedKey={selectedTranslationKey.value} />
+                  </div>
+                </div>
+              )}
+
+              {/* Table view */}
+              {i18nViewMode.value === 'table' && (
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
+                  <I18nTable />
+                </div>
+              )}
             </div>
           )}
 
