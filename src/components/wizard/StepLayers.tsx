@@ -1,10 +1,19 @@
-import { useComputed } from '@preact/signals';
+import { useComputed, useSignal } from '@preact/signals';
 import { wizardState, updateWizardData, jsonData } from '../../lib/jsonStore';
 
 export default function StepLayers() {
   const wizard = wizardState.value;
   const data = wizard.data;
+  const searchTerm = useSignal('');
   const availableLayers = useComputed(() => jsonData.value.layers || []);
+  
+  const filteredLayers = useComputed(() => {
+    if (!searchTerm.value) return availableLayers.value;
+    return availableLayers.value.filter(layer => 
+      layer.id.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+      layer.type.toLowerCase().includes(searchTerm.value.toLowerCase())
+    );
+  });
 
   const handleLayerAssignment = (itemIndex: number, layerId: string, assigned: boolean) => {
     const updatedItems = data.items.map((item, i) => {
@@ -58,12 +67,30 @@ export default function StepLayers() {
         Select which layers each item should control. Items without layer associations will not function.
       </p>
       
-      <div className="layer-grid">
-        {data.items.map((item, itemIndex) => (
-          <div key={itemIndex} className="layer-section">
-            <h4>{item.name}</h4>
-            <div className="layer-options">
-              {availableLayers.value.map((layer, layerIndex) => (
+      {availableLayers.value.length > 5 && (
+        <div className="form-group">
+          <label className="form-label">Search Layers</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Search by layer ID or type..."
+            value={searchTerm.value}
+            onChange={(e) => searchTerm.value = (e.target as HTMLInputElement).value}
+          />
+        </div>
+      )}
+      
+      {filteredLayers.value.length === 0 && searchTerm.value ? (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--muted)' }}>
+          No layers found matching "{searchTerm.value}"
+        </div>
+      ) : (
+        <div className="layer-grid">
+          {data.items.map((item, itemIndex) => (
+            <div key={itemIndex} className="layer-section">
+              <h4>{item.name}</h4>
+              <div className="layer-options">
+                {filteredLayers.value.map((layer, layerIndex) => (
                 <div key={layerIndex} className="layer-option">
                   <input
                     type="checkbox"
@@ -97,7 +124,8 @@ export default function StepLayers() {
             )}
           </div>
         ))}
-      </div>
+        </div>
+      )}
 
       {/* Summary of unassigned items */}
       {data.items.some(item => item.layersIds.length === 0) && (
@@ -115,15 +143,15 @@ export default function StepLayers() {
           <button 
             className="btn small"
             onClick={() => {
-              // Assign all layers to all items
+              // Assign all filtered layers to all items
               const updatedItems = data.items.map(item => ({
                 ...item,
-                layersIds: availableLayers.value.map(layer => layer.id)
+                layersIds: filteredLayers.value.map(layer => layer.id)
               }));
               updateWizardData({ items: updatedItems });
             }}
           >
-            Assign All Layers to All Items
+            Assign All {filteredLayers.value.length < availableLayers.value.length ? 'Filtered ' : ''}Layers to All Items
           </button>
           <button 
             className="btn small"

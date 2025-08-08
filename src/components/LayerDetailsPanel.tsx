@@ -14,7 +14,7 @@ import {
 } from '../lib/jsonStore';
 import { LayerConfig, LayerType } from '../lib/types';
 import { getDefaultLayerConfig, LAYER_TYPES, upsertLayer, validateLayer } from '../lib/layers';
-import SubEditor from './SubEditor';
+import JsonEditor from './JsonEditor';
 
 export default function LayerDetailsPanel() {
   const currentIndex = useComputed(() => selectedLayer.value.index);
@@ -237,11 +237,12 @@ export default function LayerDetailsPanel() {
           </div>
 
           {/* JSON Preview / Editor */}
-          <SubEditor
+          <JsonEditor
             title="Selected Layer JSON"
             value={workingLayer.value}
-            placeholder="Select a layer on the left"
             onChange={handleJsonChange}
+            readOnly={!isDraftActive.value}
+            height="400px"
           />
         </>
       )}

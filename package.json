@@ -10,7 +10,9 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@preact/signals": "^1.2.2",
+    "monaco-editor": "^0.52.2",
     "preact": "^10.19.3"
   },
   "devDependencies": {

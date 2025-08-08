@@ -12,6 +12,10 @@ export default function StepItems() {
   const legendUrl = useSignal('');
   const legendDescription = useSignal('');
 
+  // Check if we should limit to single item
+  const isSinglePresentation = data.presentation === 'single';
+  const canAddMoreItems = !isSinglePresentation || data.items.length === 0;
+
   const handleAddItem = () => {
     if (!itemName.value.trim()) return;
 
@@ -50,60 +54,70 @@ export default function StepItems() {
     <div>
       <h3>Add Items to Feature</h3>
       
-      <div className="form-group">
-        <label className="form-label">Item Name</label>
-        <input 
-          type="text" 
-          className="form-input"
-          value={itemName.value}
-          onChange={(e) => itemName.value = (e.target as HTMLInputElement).value}
-          placeholder="e.g., 'FL025', 'Low Clouds', 'Icing Index'"
-        />
-      </div>
+      {isSinglePresentation && data.items.length > 0 && (
+        <div className="alert info" style={{ marginBottom: '16px' }}>
+          <strong>Single Presentation Mode:</strong> This feature can only have one item since it's configured as "Single" presentation.
+        </div>
+      )}
       
-      <div className="form-group">
-        <label className="form-label">
-          <input 
-            type="checkbox" 
-            className="form-checkbox"
-            checked={showLegend.value}
-            onChange={(e) => showLegend.value = (e.target as HTMLInputElement).checked}
-          />
-          Show Legend Button
-        </label>
-      </div>
-      
-      <div className="form-group">
-        <label className="form-label">Legend URL (optional)</label>
-        <input 
-          type="text" 
-          className="form-input"
-          value={legendUrl.value}
-          onChange={(e) => legendUrl.value = (e.target as HTMLInputElement).value}
-          placeholder="https://hemswx.no/img/info-map/legend.png"
-        />
-      </div>
-      
-      <div className="form-group">
-        <label className="form-label">Legend Description Key (optional)</label>
-        <input 
-          type="text" 
-          className="form-input"
-          value={legendDescription.value}
-          onChange={(e) => legendDescription.value = (e.target as HTMLInputElement).value}
-          placeholder="e.g., 'cloud_low_legend'"
-        />
-      </div>
-      
-      <div className="form-group">
-        <button 
-          className="btn primary" 
-          onClick={handleAddItem}
-          disabled={!itemName.value.trim()}
-        >
-          Add Item
-        </button>
-      </div>
+      {canAddMoreItems && (
+        <>
+          <div className="form-group">
+            <label className="form-label">Item Name</label>
+            <input 
+              type="text" 
+              className="form-input"
+              value={itemName.value}
+              onChange={(e) => itemName.value = (e.target as HTMLInputElement).value}
+              placeholder="e.g., 'FL025', 'Low Clouds', 'Icing Index'"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label">
+              <input 
+                type="checkbox" 
+                className="form-checkbox"
+                checked={showLegend.value}
+                onChange={(e) => showLegend.value = (e.target as HTMLInputElement).checked}
+              />
+              Show Legend Button
+            </label>
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label">Legend URL (optional)</label>
+            <input 
+              type="text" 
+              className="form-input"
+              value={legendUrl.value}
+              onChange={(e) => legendUrl.value = (e.target as HTMLInputElement).value}
+              placeholder="https://hemswx.no/img/info-map/legend.png"
+            />
+          </div>
+          
+          <div className="form-group">
+            <label className="form-label">Legend Description Key (optional)</label>
+            <input 
+              type="text" 
+              className="form-input"
+              value={legendDescription.value}
+              onChange={(e) => legendDescription.value = (e.target as HTMLInputElement).value}
+              placeholder="e.g., 'cloud_low_legend'"
+            />
+          </div>
+          
+          <div className="form-group">
+            <button 
+              className="btn primary" 
+              onClick={handleAddItem}
+              disabled={!itemName.value.trim()}
+            >
+              Add Item
+            </button>
+          </div>
+        </>
+      )}
       
       <div className="items-container">
         {data.items.length === 0 ? (

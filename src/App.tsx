@@ -6,9 +6,10 @@ import {
   wizardState,
   hasJson,
   setStatus,
-  jsonData
+  jsonData,
+  updateJsonData
 } from './lib/jsonStore';
-import Editor from './components/Editor';
+import JsonEditor from './components/JsonEditor';
 import GroupsPanel from './components/GroupsPanel';
 import LayerBuilder from './components/LayerBuilder';
 import LayerDetailsPanel from './components/LayerDetailsPanel';
@@ -107,11 +108,11 @@ function App() {
           {/* Tab Views */}
           {/* Features: split view */}
           {activeTab.value === 'features' && (
-            <div className="flex gap-3">
-              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+            <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
+              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
                 <GroupsPanel />
               </div>
-              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
                 <FeatureDetailsPanel />
               </div>
             </div>
@@ -119,11 +120,11 @@ function App() {
 
           {/* Layers: split view */}
           {activeTab.value === 'layers' && (
-            <div className="flex gap-3">
-              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+            <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
+              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
                 <LayerBuilder />
               </div>
-              <div className="w-1/2 min-w-[360px] bg-slate-800 border border-slate-700 rounded-xl p-3">
+              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
                 <LayerDetailsPanel />
               </div>
             </div>
@@ -138,54 +139,50 @@ function App() {
 
           {/* JSON: full editor */}
           {activeTab.value === 'json' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
-              <div className="flex flex-wrap gap-2 mb-3 items-center">
-                <span className="text-slate-500">JSON (editable)</span>
-                <div className="ml-auto flex gap-2">
-                  <button
-                    className="btn small"
-                    onClick={() => {
-                      const validation = validateJSON(JSON.stringify(jsonData.value));
-                      if (validation.valid) {
-                        setStatus('✅ JSON is valid');
-                      } else {
-                        setStatus(`❌ Validation failed: ${validation.errors.length} error(s), ${validation.warnings.length} warning(s)`);
-                      }
-                    }}
-                  >
-                    Validate
-                  </button>
-                  <button
-                    className="btn small"
-                    onClick={() => {
-                      try {
-                        formatJSON(jsonData.value);
-                        setStatus('✅ JSON formatted');
-                      } catch (error) {
-                        setStatus('❌ Could not format JSON');
-                      }
-                    }}
-                  >
-                    Format
-                  </button>
-                  <button
-                    className="btn success small"
-                    onClick={() => {
-                      try {
-                        const jsonString = JSON.stringify(jsonData.value, null, 2);
-                        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
-                        downloadBlob(`map-layers-${timestamp}.json`, jsonString);
-                        setStatus('✅ JSON file downloaded');
-                      } catch (error) {
-                        setStatus('❌ Download failed');
-                      }
-                    }}
-                  >
-                    Download
-                  </button>
-                </div>
+            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col h-[calc(100vh-180px)]">
+              <div className="flex-1 min-h-0">
+                <JsonEditor
+                  title="Complete JSON Configuration"
+                  value={jsonData.value}
+                  onChange={(newData) => {
+                    updateJsonData(newData);
+                    setStatus('✅ JSON updated successfully');
+                  }}
+                  height="100%"
+                />
               </div>
-              <Editor />
+              
+              {/* Additional actions */}
+              <div className="flex gap-2 mt-3 pt-3 border-t border-slate-700 flex-shrink-0">
+                <button
+                  className="btn small"
+                  onClick={() => {
+                    const validation = validateJSON(JSON.stringify(jsonData.value));
+                    if (validation.valid) {
+                      setStatus('✅ JSON is valid');
+                    } else {
+                      setStatus(`❌ Validation failed: ${validation.errors.length} error(s), ${validation.warnings.length} warning(s)`);
+                    }
+                  }}
+                >
+                  Validate Structure
+                </button>
+                <button
+                  className="btn success small"
+                  onClick={() => {
+                    try {
+                      const jsonString = JSON.stringify(jsonData.value, null, 2);
+                      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+                      downloadBlob(`map-layers-${timestamp}.json`, jsonString);
+                      setStatus('✅ JSON file downloaded');
+                    } catch (error) {
+                      setStatus('❌ Download failed');
+                    }
+                  }}
+                >
+                  Download JSON
+                </button>
+              </div>
             </div>
           )}
         </div>

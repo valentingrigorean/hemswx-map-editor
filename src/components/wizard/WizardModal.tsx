@@ -46,9 +46,7 @@ export default function WizardModal() {
   const isLastStep = currentStep === 5;
 
   const handleClose = () => {
-    if (confirm('Are you sure you want to close the wizard? Unsaved changes will be lost.')) {
-      closeWizard();
-    }
+    closeWizard();
   };
 
   const handlePrevious = () => {

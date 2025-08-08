@@ -3,8 +3,7 @@ import {
   jsonData, 
   selectedFeature, 
   selectFeature, 
-  deleteFeature, 
-  openWizard
+  deleteFeature
 } from '../lib/jsonStore';
 
 interface FeatureItemProps {
@@ -22,11 +21,6 @@ function FeatureItem({ feature, type, index }: FeatureItemProps) {
     selectFeature(type, index);
   };
 
-  const handleEdit = (e: Event) => {
-    e.stopPropagation();
-    const featureType = type === 'weatherFeatures' ? 'weatherFeature' : 'feature';
-    openWizard('edit', featureType, index);
-  };
 
   const handleDelete = (e: Event) => {
     e.stopPropagation();
@@ -55,12 +49,6 @@ function FeatureItem({ feature, type, index }: FeatureItemProps) {
         </div>
       </div>
       <div className="feature-actions">
-        <button 
-          className="btn small" 
-          onClick={handleEdit}
-        >
-          Edit
-        </button>
         <button 
           className="btn danger small" 
           onClick={handleDelete}
@@ -111,14 +99,14 @@ export default function GroupsPanel() {
   };
 
   return (
-    <div>
-      <div className="mb-3">
+    <div className="flex flex-col h-full">
+      <div className="mb-3 flex-shrink-0">
         <button className="btn primary" onClick={handleCreateFeature}>
           🧙‍♂️ Create Feature
         </button>
       </div>
 
-      <div className="feature-browser">
+      <div className="feature-browser flex-1 overflow-auto">
         <FeatureCategory 
           title="Weather Features"
           type="weatherFeatures"
