@@ -7,6 +7,7 @@ import {
   moveFeatureCategory,
   moveFeatureToIndex
 } from '../lib/jsonStore';
+import { SUPPORTED_LANGUAGES } from '../lib/intl';
 
 interface FeatureItemProps {
   feature: any;
@@ -26,6 +27,43 @@ function FeatureItem({ feature, type, index, rearrange }: FeatureItemProps) {
   );
   const isDragOver = useSignal(false);
   const dragPosition = useSignal<'before' | 'after' | null>(null);
+
+  // Compute translation status for this feature
+  const translationStatus = useComputed(() => {
+    const translationKeys: string[] = [];
+    
+    // Collect all translation keys from the feature (IDs only)
+    if (feature.id?.trim()) translationKeys.push(feature.id);
+    
+    (feature.items || []).forEach((item: any) => {
+      if (item.id?.trim()) translationKeys.push(item.id);
+      if (item.legendDescription?.trim()) translationKeys.push(item.legendDescription);
+    });
+    
+    const uniqueKeys = [...new Set(translationKeys)];
+    
+    if (uniqueKeys.length === 0) {
+      return { percentage: 100, missingCount: 0, totalKeys: 0 };
+    }
+    
+    let totalTranslations = 0;
+    let completedTranslations = 0;
+    
+    uniqueKeys.forEach(key => {
+      SUPPORTED_LANGUAGES.forEach(lang => {
+        totalTranslations++;
+        const value = jsonData.value.intl?.[lang]?.[key];
+        if (value && value.trim()) {
+          completedTranslations++;
+        }
+      });
+    });
+    
+    const percentage = totalTranslations > 0 ? Math.round((completedTranslations / totalTranslations) * 100) : 100;
+    const missingCount = totalTranslations - completedTranslations;
+    
+    return { percentage, missingCount, totalKeys: uniqueKeys.length };
+  });
 
   const handleClick = () => {
     selectFeature(type, index);
@@ -115,6 +153,25 @@ function FeatureItem({ feature, type, index, rearrange }: FeatureItemProps) {
         <div className="feature-details">
           {itemCount} item(s) • {presentationType}{exclusiveText}
         </div>
+        {translationStatus.value.totalKeys > 0 && (
+          <div className="flex items-center gap-1 mt-1">
+            <span className="text-xs text-slate-400">i18n:</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              translationStatus.value.percentage === 100 
+                ? 'bg-green-600 text-white' 
+                : translationStatus.value.percentage > 50 
+                  ? 'bg-yellow-600 text-white' 
+                  : 'bg-red-600 text-white'
+            }`}>
+              {translationStatus.value.percentage}%
+            </span>
+            {translationStatus.value.missingCount > 0 && (
+              <span className="text-xs text-orange-400">
+                ({translationStatus.value.missingCount} missing)
+              </span>
+            )}
+          </div>
+        )}
       </div>
       <div className="feature-actions flex gap-1">
         {rearrange && (

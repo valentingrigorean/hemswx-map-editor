@@ -12,7 +12,9 @@ import {
 } from '../lib/jsonStore';
 import { MapFeature } from '../lib/types';
 import { isCustomLogicLayer } from '../lib/settings';
+import { autoSyncFeatureTranslations, SUPPORTED_LANGUAGES } from '../lib/intl';
 import JsonEditor from './JsonEditor';
+import IntlEditor from './IntlEditor';
 
 interface LayerMultiSelectProps {
   selectedLayerIds: string[];
@@ -55,7 +57,7 @@ function LayerSelectionModal({ isOpen, selectedLayerIds, onClose, onSave }: Laye
   const sortedLayers = useComputed(() => {
     const layers = availableLayers.value.map(layer => ({
       id: layer.id,
-      title: layer.title || layer.id || 'Unnamed Layer',
+      title: layer.id || 'Unnamed Layer',
       isAssigned: otherAssignedLayerIds.value.has(layer.id)
     }));
     
@@ -156,7 +158,7 @@ function LayerMultiSelect({ selectedLayerIds, onChange }: LayerMultiSelectProps)
   const selectedNames = selectedLayerIds
     .map(id => {
       const layer = layers.find(l => l.id === id);
-      return layer?.title || layer?.id || id;
+      return layer?.id || id;
     })
     .slice(0, 2);
   const selectedLabel =
@@ -200,6 +202,7 @@ function LayerMultiSelect({ selectedLayerIds, onChange }: LayerMultiSelectProps)
 
 const DETAIL_TABS = [
   { id: 'details', label: 'Details' },
+  { id: 'intl', label: 'i18n' },
   { id: 'json', label: 'JSON' }
 ] as const;
 
@@ -248,7 +251,7 @@ const createEmptyFeature = (): MapFeature => ({
 export default function FeatureDetailsPanel() {
   const sel = selectedFeature;
   const selData = selectedFeatureData;
-  const activeDetailTab = useSignal<'details' | 'json'>('details');
+  const activeDetailTab = useSignal<'details' | 'intl' | 'json'>('details');
   const creationMode = useSignal<{
     active: boolean;
     featureType: 'weatherFeatures' | 'features';
@@ -306,6 +309,45 @@ export default function FeatureDetailsPanel() {
     return (!featureHasId && itemHasId) || (!featureHasName && itemHasName);
   });
 
+  const translationStatus = useComputed(() => {
+    if (!working.value) return { percentage: 100, missingCount: 0, totalKeys: 0 };
+    
+    const feature = working.value;
+    const translationKeys: string[] = [];
+    
+    // Collect all translation keys from the current feature (IDs only)
+    if (feature.id?.trim()) translationKeys.push(feature.id);
+    
+    (feature.items || []).forEach(item => {
+      if (item.id?.trim()) translationKeys.push(item.id);
+      if (item.legendDescription?.trim()) translationKeys.push(item.legendDescription);
+    });
+    
+    const uniqueKeys = [...new Set(translationKeys)];
+    
+    if (uniqueKeys.length === 0) {
+      return { percentage: 100, missingCount: 0, totalKeys: 0 };
+    }
+    
+    let totalTranslations = 0;
+    let completedTranslations = 0;
+    
+    uniqueKeys.forEach(key => {
+      SUPPORTED_LANGUAGES.forEach(lang => {
+        totalTranslations++;
+        const value = jsonData.value.intl?.[lang]?.[key];
+        if (value && value.trim()) {
+          completedTranslations++;
+        }
+      });
+    });
+    
+    const percentage = totalTranslations > 0 ? Math.round((completedTranslations / totalTranslations) * 100) : 100;
+    const missingCount = totalTranslations - completedTranslations;
+    
+    return { percentage, missingCount, totalKeys: uniqueKeys.length };
+  });
+
   const beginEdit = () => {
     if (!sel.value.type || sel.value.index < 0 || !selData.value) return;
     setFeatureDraft(sel.value.type, sel.value.index, { ...(selData.value as MapFeature) });
@@ -358,7 +400,7 @@ export default function FeatureDetailsPanel() {
     }
 
     // Validate that each item has required fields
-    const invalidItems = draftVal.items.filter((item, index) => 
+    const invalidItems = draftVal.items.filter((item) => 
       !item.id?.trim() || !item.name?.trim()
     );
     
@@ -376,8 +418,20 @@ export default function FeatureDetailsPanel() {
       return;
     }
 
+    // Enhanced validation for multiple vs single presentation
+    if (draftVal.presentation === 'multiple') {
+      // For multiple presentation, feature must have a name if any item lacks a name
+      const itemsWithoutNames = draftVal.items.filter(item => !item.name?.trim());
+      const featureHasName = draftVal.name?.trim();
+      
+      if (itemsWithoutNames.length > 0 && !featureHasName) {
+        setStatus('❌ Multiple presentation features must have a feature name when items are missing names');
+        return;
+      }
+    }
+
     // Validate layer associations - each item must have at least one layer
-    const itemsWithoutLayers = draftVal.items.filter((item, index) => 
+    const itemsWithoutLayers = draftVal.items.filter((item) => 
       !item.layersIds || item.layersIds.length === 0
     );
     
@@ -403,8 +457,11 @@ export default function FeatureDetailsPanel() {
       return;
     }
 
+    // Auto-sync translations for this feature
+    const syncedData = autoSyncFeatureTranslations(jsonData.value, draftVal);
+    
     // Create deep copy to ensure reactivity
-    const updated = JSON.parse(JSON.stringify(jsonData.value)) as any;
+    const updated = JSON.parse(JSON.stringify(syncedData)) as any;
     
     if (isCreating) {
       // Add new feature to the appropriate array
@@ -432,10 +489,12 @@ export default function FeatureDetailsPanel() {
       setStatus('✅ Feature created successfully');
     } else {
       // Update existing feature
-      updated[sel.value.type][sel.value.index] = JSON.parse(JSON.stringify(draftVal));
-      
-      // Clear draft first to ensure we're in view mode
-      clearFeatureDraft(sel.value.type, sel.value.index);
+      if (sel.value.type) {
+        updated[sel.value.type][sel.value.index] = JSON.parse(JSON.stringify(draftVal));
+        
+        // Clear draft first to ensure we're in view mode
+        clearFeatureDraft(sel.value.type, sel.value.index);
+      }
       
       setStatus('✅ Feature saved successfully');
     }
@@ -588,14 +647,25 @@ export default function FeatureDetailsPanel() {
             {DETAIL_TABS.map((tab) => (
               <button
                 key={tab.id}
-                className={`px-3 py-1.5 rounded-t-md text-xs transition-all duration-150 ${
+                className={`px-3 py-1.5 rounded-t-md text-xs transition-all duration-150 flex items-center gap-2 ${
                   activeDetailTab.value === tab.id
                     ? 'bg-blue-500 text-white'
                     : 'bg-slate-950 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
                 }`}
                 onClick={() => (activeDetailTab.value = tab.id)}
               >
-                {tab.label}
+                <span>{tab.label}</span>
+                {tab.id === 'intl' && translationStatus.value.totalKeys > 0 && (
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                    translationStatus.value.percentage === 100 
+                      ? 'bg-green-600 text-white' 
+                      : translationStatus.value.percentage > 50 
+                        ? 'bg-yellow-600 text-white' 
+                        : 'bg-red-600 text-white'
+                  }`}>
+                    {translationStatus.value.percentage}%
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -741,23 +811,23 @@ export default function FeatureDetailsPanel() {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {(working.value.items || []).map((item, index) => (
+                        {working.value && (working.value.items || []).map((item, index) => (
                           <div 
                             key={index} 
                             className="border border-slate-600 rounded p-3 bg-slate-900"
-                            draggable={isEditing.value && (working.value.items || []).length > 1}
+                            draggable={!!(isEditing.value && working.value && (working.value.items || []).length > 1)}
                             onDragStart={(e) => {
-                              if (!isEditing.value) return;
+                              if (!isEditing.value || !e.dataTransfer) return;
                               e.dataTransfer.setData('text/plain', index.toString());
                               e.dataTransfer.effectAllowed = 'move';
                             }}
                             onDragOver={(e) => {
-                              if (!isEditing.value) return;
+                              if (!isEditing.value || !e.dataTransfer) return;
                               e.preventDefault();
                               e.dataTransfer.dropEffect = 'move';
                             }}
                             onDrop={(e) => {
-                              if (!isEditing.value) return;
+                              if (!isEditing.value || !e.dataTransfer || !working.value) return;
                               e.preventDefault();
                               const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'));
                               if (draggedIndex !== index) {
@@ -769,12 +839,12 @@ export default function FeatureDetailsPanel() {
                               }
                             }}
                             style={{
-                              opacity: isEditing.value && (working.value.items || []).length > 1 ? '1' : '1',
-                              cursor: isEditing.value && (working.value.items || []).length > 1 ? 'grab' : 'default'
+                              opacity: isEditing.value && working.value && (working.value.items || []).length > 1 ? '1' : '1',
+                              cursor: isEditing.value && working.value && (working.value.items || []).length > 1 ? 'grab' : 'default'
                             }}
                           >
                             <div className="flex items-center gap-2 mb-2">
-                              {isEditing.value && (working.value.items || []).length > 1 && (
+                              {isEditing.value && working.value && (working.value.items || []).length > 1 && (
                                 <div 
                                   className="cursor-move text-slate-400 hover:text-slate-300 px-1 select-none" 
                                   title="Drag to reorder items"
@@ -794,10 +864,11 @@ export default function FeatureDetailsPanel() {
                                   Legend: {item.showLegend ? 'Yes' : 'No'}
                                 </div>
                               </div>
-                              {isEditing.value && (
+                              {isEditing.value && working.value && (
                                 <button
                                   className="btn tiny danger"
                                   onClick={() => {
+                                    if (!working.value) return;
                                     const newItems = [...(working.value.items || [])];
                                     newItems.splice(index, 1);
                                     updateDraft({ items: newItems });
@@ -818,6 +889,7 @@ export default function FeatureDetailsPanel() {
                                       className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
                                       value={item.id || ''}
                                       onChange={(e) => {
+                                        if (!working.value) return;
                                         const newItems = [...(working.value.items || [])];
                                         newItems[index] = { ...item, id: (e.target as HTMLInputElement).value };
                                         updateDraft({ items: newItems });
@@ -832,6 +904,7 @@ export default function FeatureDetailsPanel() {
                                       className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
                                       value={item.name || ''}
                                       onChange={(e) => {
+                                        if (!working.value) return;
                                         const newItems = [...(working.value.items || [])];
                                         newItems[index] = { ...item, name: (e.target as HTMLInputElement).value };
                                         updateDraft({ items: newItems });
@@ -845,6 +918,7 @@ export default function FeatureDetailsPanel() {
                                   <LayerMultiSelect 
                                     selectedLayerIds={item.layersIds || []}
                                     onChange={(layersIds) => {
+                                      if (!working.value) return;
                                       const newItems = [...(working.value.items || [])];
                                       newItems[index] = { ...item, layersIds };
                                       updateDraft({ items: newItems });
@@ -857,6 +931,7 @@ export default function FeatureDetailsPanel() {
                                     className="form-checkbox"
                                     checked={item.showLegend || false}
                                     onChange={(e) => {
+                                      if (!working.value) return;
                                       const newItems = [...(working.value.items || [])];
                                       newItems[index] = { ...item, showLegend: (e.target as HTMLInputElement).checked };
                                       updateDraft({ items: newItems });
@@ -869,7 +944,7 @@ export default function FeatureDetailsPanel() {
                           </div>
                         ))}
                         
-                        {working.value.presentation !== 'single' && (
+                        {working.value && working.value.presentation !== 'single' && (
                           <button
                             className="btn small w-full"
                             onClick={() => {
@@ -877,6 +952,7 @@ export default function FeatureDetailsPanel() {
                               if (!isEditing.value) {
                                 beginEdit();
                               }
+                              if (!working.value) return;
                               const newItem = {
                                 id: '',
                                 name: '',
@@ -892,6 +968,16 @@ export default function FeatureDetailsPanel() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeDetailTab.value === 'intl' && working.value && (
+              <div className="h-full">
+                <IntlEditor 
+                  key={`${sel.value.type ?? 'none'}:${sel.value.index}:${isEditing.value ? 'edit' : 'view'}`}
+                  feature={working.value}
+                  isEditing={isEditing.value}
+                />
               </div>
             )}
 

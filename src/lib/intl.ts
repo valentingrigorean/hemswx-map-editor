@@ -1,8 +1,66 @@
-import { MapLayersData, IntlDict } from './types';
+import { MapLayersData, IntlDict, MapFeature } from './types';
 import { collectItemIds } from './utils';
 
 export const SUPPORTED_LANGUAGES = ['en', 'da', 'nb', 'sv'] as const;
 export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
+
+// Auto-sync translations when features are created/modified
+export const autoSyncFeatureTranslations = (data: MapLayersData, feature: MapFeature): MapLayersData => {
+  const updatedData = { ...data };
+  
+  // Ensure intl object exists
+  if (!updatedData.intl) {
+    updatedData.intl = { en: {}, da: {}, nb: {}, sv: {} };
+  }
+  
+  // Collect keys from the feature
+  const keysToSync: Array<{ key: string; defaultValue: string }> = [];
+  
+  // Add feature ID only (not names)
+  if (feature.id?.trim()) {
+    keysToSync.push({ 
+      key: feature.id, 
+      defaultValue: feature.name?.trim() || feature.id 
+    });
+  }
+  
+  // Add item IDs only (not names)
+  (feature.items || []).forEach(item => {
+    if (item.id?.trim()) {
+      keysToSync.push({ 
+        key: item.id, 
+        defaultValue: item.name?.trim() || item.id 
+      });
+    }
+    if (item.legendDescription?.trim()) {
+      keysToSync.push({ 
+        key: item.legendDescription, 
+        defaultValue: item.legendDescription 
+      });
+    }
+  });
+  
+  // Ensure keys exist in all languages
+  SUPPORTED_LANGUAGES.forEach(lang => {
+    if (!updatedData.intl[lang]) {
+      updatedData.intl[lang] = {};
+    }
+    
+    keysToSync.forEach(({ key, defaultValue }) => {
+      // Only add if key doesn't exist yet
+      if (!updatedData.intl[lang][key]) {
+        if (lang === 'en') {
+          updatedData.intl[lang][key] = defaultValue;
+        } else {
+          // For other languages, use English version if available, otherwise use key
+          updatedData.intl[lang][key] = updatedData.intl.en[key] || defaultValue;
+        }
+      }
+    });
+  });
+  
+  return updatedData;
+};
 
 export const syncTranslations = (data: MapLayersData): MapLayersData => {
   const updatedData = { ...data };
