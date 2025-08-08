@@ -3,7 +3,7 @@ import { MapLayersData, WizardData, AppState, LayerConfig, MapFeature } from './
 import { getDefaultData } from './utils';
 import { recomputeStats, summarizeData } from './parse';
 import { syncTranslations, pruneTranslations } from './intl';
-import { pruneUnusedLayers } from './layers';
+import { pruneUnusedLayers, deleteLayer } from './layers';
 
 const createDefaultWizardData = (): WizardData => ({
   featureType: 'weatherFeature',

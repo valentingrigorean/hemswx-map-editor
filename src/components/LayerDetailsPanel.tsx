@@ -10,10 +10,12 @@ import {
   layerDrafts,
   getLayerDraft,
   setLayerDraft,
-  clearLayerDraft
+  clearLayerDraft,
+  deleteLayer
 } from '../lib/jsonStore';
 import { LayerConfig, LayerType } from '../lib/types';
 import { getDefaultLayerConfig, LAYER_TYPES, upsertLayer, validateLayer } from '../lib/layers';
+import { getLayerUsage } from '../lib/utils';
 import SubEditor from './SubEditor';
 
 export default function LayerDetailsPanel() {
@@ -82,6 +84,29 @@ export default function LayerDetailsPanel() {
     validationErrors.value = [];
   };
 
+  const handleDelete = () => {
+    if (currentIndex.value < 0 || !currentLayerValue.value) return;
+    
+    const layerName = currentLayerValue.value.id || `Layer ${currentIndex.value + 1}`;
+    if (confirm(`Are you sure you want to delete layer "${layerName}"? This action cannot be undone.`)) {
+      deleteLayer(currentIndex.value);
+    }
+  };
+
+  const handleDuplicate = () => {
+    if (currentIndex.value < 0 || !currentLayerValue.value) return;
+    
+    const originalLayer = currentLayerValue.value;
+    const duplicatedLayer = {
+      ...originalLayer,
+      id: `${originalLayer.id}_copy`
+    };
+    
+    setLayerDraft('new', duplicatedLayer);
+    selectLayer(-1);
+    validationErrors.value = [];
+  };
+
   const updateDraft = (updates: Partial<LayerConfig>) => {
     const key = draftKey ?? 'new';
     const base: LayerConfig = (key === 'new' ? layerDrafts.value['new'] : layerDrafts.value[key]) as LayerConfig;
@@ -99,6 +124,11 @@ export default function LayerDetailsPanel() {
   };
 
   const canEdit = useComputed(() => currentIndex.value >= 0 && !!currentLayerValue.value);
+  
+  const layerUsage = useComputed(() => {
+    if (!currentLayerValue.value?.id) return [];
+    return getLayerUsage(jsonData.value, currentLayerValue.value.id);
+  });
 
   return (
     <div className="max-h-[calc(100vh-180px)] overflow-auto">
@@ -108,7 +138,11 @@ export default function LayerDetailsPanel() {
         </span>
         <div className="ml-auto flex gap-2">
           {!isEditing.value && canEdit.value && (
-            <button className="btn small" onClick={beginEdit}>Edit</button>
+            <>
+              <button className="btn small" onClick={beginEdit}>Edit</button>
+              <button className="btn ghost small" onClick={handleDuplicate}>Duplicate</button>
+              <button className="btn danger small" onClick={handleDelete}>Delete</button>
+            </>
           )}
           <button className="btn primary small" onClick={startNew}>New Layer</button>
           {isEditing.value && (
@@ -168,6 +202,12 @@ export default function LayerDetailsPanel() {
                   <option key={t} value={t}>{t.toUpperCase()}</option>
                 ))}
               </select>
+              <div className="text-xs text-slate-400 mt-1">
+                {workingLayer.value.type === 'wms' && 'Web Map Service - requires layer names'}
+                {workingLayer.value.type === 'tiled' && 'Pre-rendered tile service - fastest loading'}
+                {workingLayer.value.type === 'mapImage' && 'Dynamic ArcGIS Map Service'}
+                {workingLayer.value.type === 'portalItem' && 'ArcGIS Online Portal Item - requires portal item ID'}
+              </div>
             </div>
 
             <div className="form-group">
@@ -177,9 +217,20 @@ export default function LayerDetailsPanel() {
                 className="form-input"
                 value={workingLayer.value.source || ''}
                 onChange={(e) => updateDraft({ source: (e.target as HTMLInputElement).value })}
-                placeholder={workingLayer.value.type === 'portalItem' ? 'portal-item-id' : 'https://example.com/service'}
+                placeholder={
+                  workingLayer.value.type === 'portalItem' ? 'e.g. abc123def456' :
+                  workingLayer.value.type === 'wms' ? 'https://example.com/wms' :
+                  workingLayer.value.type === 'tiled' ? 'https://example.com/tiles/{z}/{y}/{x}.png' :
+                  'https://example.com/arcgis/rest/services/MapServer'
+                }
                 disabled={!isEditing.value}
               />
+              <div className="text-xs text-slate-400 mt-1">
+                {workingLayer.value.type === 'portalItem' && 'Enter the ArcGIS Online portal item ID'}
+                {workingLayer.value.type === 'wms' && 'WMS service endpoint URL'}
+                {workingLayer.value.type === 'tiled' && 'Tile template URL with {z}/{y}/{x} placeholders'}
+                {workingLayer.value.type === 'mapImage' && 'ArcGIS REST MapServer endpoint'}
+              </div>
             </div>
 
             {workingLayer.value.type === 'wms' && (
@@ -193,6 +244,9 @@ export default function LayerDetailsPanel() {
                   placeholder="layer1,layer2,layer3"
                   disabled={!isEditing.value}
                 />
+                <div className="text-xs text-slate-400 mt-1">
+                  Comma-separated list of WMS layer names to include in requests
+                </div>
               </div>
             )}
 
@@ -232,6 +286,38 @@ export default function LayerDetailsPanel() {
                   placeholder="0"
                   disabled={!isEditing.value}
                 />
+              </div>
+            )}
+
+            {!isEditing.value && layerUsage.value.length > 0 && (
+              <div className="form-group">
+                <label className="form-label">Layer Usage</label>
+                <div className="bg-slate-700 rounded p-3 text-sm">
+                  <div className="text-slate-300 mb-2">This layer is referenced by {layerUsage.value.length} item(s):</div>
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {layerUsage.value.map((usage, index) => (
+                      <div key={index} className="text-slate-400 text-xs flex items-center gap-2">
+                        <span className="bg-slate-600 px-2 py-0.5 rounded text-xs">
+                          {usage.featureType === 'weatherFeatures' ? 'Weather' : 'Feature'}
+                        </span>
+                        <span>{usage.featureName}</span>
+                        <span className="text-slate-500">→</span>
+                        <span>{usage.itemName}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isEditing.value && layerUsage.value.length === 0 && currentLayerValue.value && (
+              <div className="form-group">
+                <label className="form-label">Layer Usage</label>
+                <div className="bg-slate-700 rounded p-3 text-sm text-slate-400">
+                  This layer is not currently referenced by any features or items.
+                  <br />
+                  <span className="text-xs text-slate-500">Consider deleting if no longer needed.</span>
+                </div>
               </div>
             )}
           </div>
