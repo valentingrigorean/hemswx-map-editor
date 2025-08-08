@@ -51,7 +51,30 @@ jspm_packages/
 
 # dotenv environment variables file
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Vite build output
+dist/
+dist-ssr/
+
+# Vite cache
+.vite/
+
+# TypeScript build cache
+*.tsbuildinfo
 
 # Backup files
 *.bak
 *.backup
+
+# Local development
+.cache/
+.temp/
+.tmp/
+
+# Package manager lockfiles (keep package-lock.json but ignore others)
+yarn.lock
+pnpm-lock.yaml
