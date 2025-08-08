@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Map Layers JSON Editor - Enhanced</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<header>
+  <h1>Map Layers JSON Editor</h1>
+  <button id="loadBtn" class="btn">Open JSON…</button>
+  <input id="fileInput" type="file" accept="application/json" hidden />
+  <button id="createFeatureBtn" class="btn primary">🧙‍♂️ Create Feature</button>
+  <button id="downloadBtn" class="btn success">Download JSON</button>
+  <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+    <span id="quickSummary" class="muted"></span>
+    <div id="status" class="muted" style="font-size:11px; max-width:300px; text-align:right;"></div>
+  </div>
+</header>
+
+<div class="row">
+  <div class="col left">
+    <div id="dropzone">
+      <strong>Drop your JSON here</strong><br/>
+      or click <span class="pill warn">Open JSON…</span>
+    </div>
+    
+    <!-- Main Tabs -->
+    <div class="main-tabs">
+      <div class="main-tab-buttons">
+        <button class="main-tab-btn active" data-tab="features">Features</button>
+        <button class="main-tab-btn" data-tab="tools">Tools</button>
+        <button class="main-tab-btn" data-tab="internationalization">i18n</button>
+        <button class="main-tab-btn" data-tab="stats">Stats</button>
+      </div>
+      
+      <!-- Features Tab -->
+      <div class="main-tab-content active" id="featuresTab">
+        <div id="featureBrowser" class="feature-browser">
+          <details open>
+            <summary class="feature-category-header">Weather Features</summary>
+            <div id="weatherFeaturesList" class="feature-category-content">No weather features found</div>
+          </details>
+          <details open>
+            <summary class="feature-category-header">General Features</summary>
+            <div id="generalFeaturesList" class="feature-category-content">No general features found</div>
+          </details>
+          <div id="featurePreview" class="feature-preview">
+            <div class="feature-preview-header">Selected Feature JSON</div>
+            <textarea id="featureJsonPreview" class="form-textarea" readonly placeholder="Select a feature to preview its JSON"></textarea>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Tools Tab -->
+      <div class="main-tab-content" id="toolsTab">
+        <div class="tools-section">
+          <h3>Validation & Cleanup</h3>
+          <div class="tools-grid">
+            <button id="validateBtn" class="btn tool-btn">Validate</button>
+            <button id="syncIntlBtn" class="btn tool-btn">Fix Missing Translations</button>
+            <button id="pruneBtn" class="btn tool-btn">Remove Unused</button>
+            <button id="formatBtn" class="btn tool-btn">Format</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Internationalization Tab -->
+      <div class="main-tab-content" id="internationalizationTab">
+        <div id="intlTabs" class="intl-tabs">
+          <div class="intl-tab-buttons">
+            <button class="intl-tab-btn active" data-lang="en">English</button>
+            <button class="intl-tab-btn" data-lang="da">Danish</button>
+            <button class="intl-tab-btn" data-lang="nb">Norwegian</button>
+            <button class="intl-tab-btn" data-lang="sv">Swedish</button>
+          </div>
+          <div id="intlTabContent" class="intl-tab-content">
+            <!-- Content populated dynamically -->
+          </div>
+        </div>
+      </div>
+      
+      <!-- Stats Tab -->
+      <div class="main-tab-content" id="statsTab">
+        <div id="stats"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col right">
+    <div class="toolbar">
+      <span class="muted">JSON (editable)</span>
+    </div>
+    <textarea id="editor" spellcheck="false" placeholder="Paste JSON or drop a file…"></textarea>
+  </div>
+</div>
+
+<!-- Multi-Step Feature Creation/Edit Wizard -->
+<div id="featureWizard" class="wizard-modal">
+  <div class="wizard-content">
+    <div class="wizard-header">
+      <h2 id="wizardTitle">Create New Feature - Multi-Step Wizard</h2>
+    </div>
+    <div class="wizard-body">
+      <div class="wizard-layout">
+        <div class="wizard-sidebar">
+          <div class="stepper">
+            <div class="stepper-item active" data-step="1">
+              <div class="stepper-number"><span>1</span></div>
+              <div class="stepper-label">Feature Type</div>
+            </div>
+            <div class="stepper-item" data-step="2">
+              <div class="stepper-number"><span>2</span></div>
+              <div class="stepper-label">Configuration</div>
+            </div>
+            <div class="stepper-item" data-step="3">
+              <div class="stepper-number"><span>3</span></div>
+              <div class="stepper-label">Add Items</div>
+            </div>
+            <div class="stepper-item" data-step="4">
+              <div class="stepper-number"><span>4</span></div>
+              <div class="stepper-label">Layer Association</div>
+            </div>
+            <div class="stepper-item" data-step="5">
+              <div class="stepper-number"><span>5</span></div>
+              <div class="stepper-label">Review & Save</div>
+            </div>
+          </div>
+        </div>
+        <div class="wizard-main">
+
+      <!-- Step 1: Feature Type Selection -->
+      <div class="step-content active" id="step1">
+        <h3>Choose Feature Type</h3>
+        <div class="form-group">
+          <label class="form-radio">
+            <input type="radio" name="featureType" value="weatherFeature" checked>
+            <strong>Weather Feature</strong>
+            <div class="form-help">Weather-related layers (wind, precipitation, temperature, clouds, radar, etc.)</div>
+          </label>
+          <label class="form-radio">
+            <input type="radio" name="featureType" value="feature">
+            <strong>General Feature</strong>
+            <div class="form-help">Non-weather features (terrain, obstacles, POI, navigation aids, etc.)</div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Step 2: Feature Configuration -->
+      <div class="step-content" id="step2">
+        <h3>Feature Configuration</h3>
+        <div class="form-group">
+          <label class="form-label">Feature ID (for internationalization)</label>
+          <input type="text" id="featureId" class="form-input" placeholder="e.g., 'wind', 'cloud', 'aviation_obstacle'">
+          <div class="form-help">Optional. Used as key for translations across languages (en, da, nb, sv).</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Display Name</label>
+          <input type="text" id="featureName" class="form-input" placeholder="e.g., 'Wind (60 min)', 'Cloud Coverage'">
+          <div class="form-help">Optional. Visible name in UI.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Presentation Style</label>
+          <select id="presentation" class="form-select">
+            <option value="single">Single - Only one item can be active at a time</option>
+            <option value="multiple">Multiple - Multiple items can be active simultaneously</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="mutuallyExclusive" class="form-checkbox">
+            Mutually Exclusive Items
+          </label>
+          <div class="form-help">When one item is selected, others are automatically deselected.</div>
+        </div>
+      </div>
+
+      <!-- Step 3: Add Items -->
+      <div class="step-content" id="step3">
+        <h3>Add Items to Feature</h3>
+        <div class="form-group">
+          <label class="form-label">Item Name</label>
+          <input type="text" id="itemName" class="form-input" placeholder="e.g., 'FL025', 'Low Clouds', 'Icing Index'">
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="showLegend" class="form-checkbox" checked>
+            Show Legend Button
+          </label>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Legend URL (optional)</label>
+          <input type="text" id="legendUrl" class="form-input" placeholder="https://hemswx.no/img/info-map/legend.png">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Legend Description Key (optional)</label>
+          <input type="text" id="legendDescription" class="form-input" placeholder="e.g., 'cloud_low_legend'">
+        </div>
+        <div class="form-group">
+          <button id="addItemToList" class="btn primary">Add Item</button>
+        </div>
+        
+        <div id="itemsList" class="items-container">
+          <div style="padding:20px; text-align:center; color:var(--muted);">No items added yet</div>
+        </div>
+      </div>
+
+      <!-- Step 4: Layer Association -->
+      <div class="step-content" id="step4">
+        <h3>Associate Layers with Items</h3>
+        <p class="muted">Select which layers each item should control. Items without layer associations will not function.</p>
+        <div id="layerAssociation" class="layer-grid">
+          <!-- Layer association UI built dynamically -->
+        </div>
+      </div>
+
+      <!-- Step 5: Review & Create -->
+      <div class="step-content" id="step5">
+        <h3>Review Your Feature</h3>
+        <div class="validation-results" id="validationResults">
+          <!-- Validation results shown here -->
+        </div>
+        <div class="form-group">
+          <label class="form-label">Generated JSON Preview</label>
+          <textarea id="jsonPreview" class="form-textarea" readonly></textarea>
+        </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="wizard-footer">
+      <button id="prevBtn" class="btn" disabled>← Previous</button>
+      <button id="nextBtn" class="btn primary">Next →</button>
+      <button id="saveBtn" class="btn success" style="display:none;">✨ Create Feature</button>
+      <button id="cancelBtn" class="btn ghost">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Load JavaScript files in dependency order -->
+<script src="js/state.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/features.js"></script>
+<script src="js/intl.js"></script>
+<script src="js/wizard.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
