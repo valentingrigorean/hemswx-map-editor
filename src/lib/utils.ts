@@ -51,6 +51,42 @@ export const collectReferencedLayerIds = (data: MapLayersData): Set<string> => {
   return used;
 };
 
+export const getLayerUsage = (data: MapLayersData, layerId: string): Array<{
+  featureType: 'weatherFeatures' | 'features';
+  featureIndex: number;
+  featureName: string;
+  itemIndex: number;
+  itemName: string;
+}> => {
+  const usage: Array<{
+    featureType: 'weatherFeatures' | 'features';
+    featureIndex: number;
+    featureName: string;
+    itemIndex: number;
+    itemName: string;
+  }> = [];
+  
+  const scanFeatureGroup = (arr: any[], featureType: 'weatherFeatures' | 'features') => {
+    arr.forEach((feature, featureIndex) => {
+      (feature.items || []).forEach((item: any, itemIndex: number) => {
+        if ((item.layersIds || []).includes(layerId)) {
+          usage.push({
+            featureType,
+            featureIndex,
+            featureName: feature.name || feature.id || `${featureType} ${featureIndex + 1}`,
+            itemIndex,
+            itemName: item.name || item.id || `Item ${itemIndex + 1}`
+          });
+        }
+      });
+    });
+  };
+  
+  scanFeatureGroup(data.weatherFeatures, 'weatherFeatures');
+  scanFeatureGroup(data.features, 'features');
+  return usage;
+};
+
 export const downloadBlob = (filename: string, content: string, mimeType = 'application/json') => {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
