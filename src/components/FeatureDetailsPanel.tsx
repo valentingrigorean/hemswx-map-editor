@@ -800,6 +800,7 @@ export default function FeatureDetailsPanel() {
                               const newItem = {
                                 id: '',
                                 name: '',
+                                showLegend: false,
                                 layersIds: []
                               };
                               updateDraft({ items: [newItem] });
@@ -939,6 +940,43 @@ export default function FeatureDetailsPanel() {
                                   />
                                   <span className="text-slate-400">Show Legend</span>
                                 </div>
+                                {item.showLegend && (
+                                  <div className="grid grid-cols-2 gap-2 mt-2">
+                                    <div className="col-span-2">
+                                      <label className="block text-slate-400 mb-1">Legend URL (optional)</label>
+                                      <input
+                                        type="text"
+                                        className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
+                                        value={item.legendUrl || ''}
+                                        onChange={(e) => {
+                                          if (!working.value) return;
+                                          const newItems = [...(working.value.items || [])];
+                                          newItems[index] = { ...item, legendUrl: (e.target as HTMLInputElement).value };
+                                          updateDraft({ items: newItems });
+                                        }}
+                                        placeholder="https://example.com/legend.png"
+                                      />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <label className="block text-slate-400 mb-1">Legend Description Key (optional)</label>
+                                      <input
+                                        type="text"
+                                        className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
+                                        value={item.legendDescription || ''}
+                                        onChange={(e) => {
+                                          if (!working.value) return;
+                                          const newItems = [...(working.value.items || [])];
+                                          newItems[index] = { ...item, legendDescription: (e.target as HTMLInputElement).value };
+                                          updateDraft({ items: newItems });
+                                        }}
+                                        placeholder="translation.key.for.legend_description"
+                                      />
+                                      <div className="text-xs text-slate-500 mt-1">
+                                        Appears in i18n panel as a translatable key
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -956,6 +994,7 @@ export default function FeatureDetailsPanel() {
                               const newItem = {
                                 id: '',
                                 name: '',
+                                showLegend: false,
                                 layersIds: []
                               };
                               updateDraft({ items: [...(working.value.items || []), newItem] });
