@@ -24,6 +24,7 @@ import {
 import { getLayerUsage } from '../lib/utils';
 import { isCustomLogicLayer } from '../lib/settings';
 import JsonEditor from './JsonEditor';
+import ValidationDisplay from './ValidationDisplay';
 
 const DETAIL_TABS = [
   { id: 'details', label: 'Details' },
@@ -52,19 +53,21 @@ export default function LayerDetailsPanel() {
     return currentEntry.value || null;
   });
 
-  const validationErrors = useSignal<string[]>([]);
+  const validation = useComputed(() => {
+    const entry = workingEntry.value;
+    if (!entry) return null;
+    return validateLayerEntry(entry);
+  });
 
   const startNew = () => {
     const fresh: LayerEntry = { id: '', layers: [] };
     setLayerDraft('new', fresh);
     selectLayer(-1);
-    validationErrors.value = [];
   };
 
   const beginEdit = () => {
     if (currentIndex.value < 0 || !currentEntry.value) return;
     setLayerDraft(currentIndex.value, { ...(currentEntry.value as LayerEntry) });
-    validationErrors.value = [];
   };
 
   const applySave = () => {
@@ -88,14 +91,12 @@ export default function LayerDetailsPanel() {
 
     clearLayerDraft('new');
     if (!useNew && typeof key === 'number') clearLayerDraft(key);
-    validationErrors.value = [];
     setStatus('✅ Layer saved successfully');
   };
 
   const cancelEdit = () => {
     clearLayerDraft('new');
     if (typeof draftKey.value === 'number') clearLayerDraft(draftKey.value);
-    validationErrors.value = [];
   };
 
   const handleDelete = () => {
@@ -118,7 +119,6 @@ export default function LayerDetailsPanel() {
 
     setLayerDraft('new', duplicated);
     selectLayer(-1);
-    validationErrors.value = [];
   };
 
   const updateDraft = (updates: Partial<LayerEntry>) => {
@@ -152,7 +152,7 @@ export default function LayerDetailsPanel() {
     const key = useNew ? 'new' : (draftKey.value as number);
     const base: LayerEntry = (useNew ? layerDrafts.value['new'] : layerDrafts.value[key]) as LayerEntry;
     // Start blank to make new flow similar to edit (empty fields)
-    const blank: LayerConfig = { type, source: '', opacity: 1, zIndex: 0 } as LayerConfig;
+    const blank: LayerConfig = { type, source: '', zIndex: 0, options: { opacity: 1 } } as LayerConfig;
     const nextLayers = [...(base.layers || []), blank];
     setLayerDraft(key, { ...base, layers: nextLayers });
   };
@@ -215,16 +215,6 @@ export default function LayerDetailsPanel() {
         </div>
       </div>
 
-      {validationErrors.value.length > 0 && (
-        <div className="mb-3 p-2 bg-red-500 text-white rounded text-xs">
-          <strong>Validation Errors:</strong>
-          <ul className="mt-1 ml-4 p-0">
-            {validationErrors.value.map((e, i) => (
-              <li key={i}>{e}</li>
-            ))}
-          </ul>
-        </div>
-      )}
 
       {!workingEntry.value ? (
         <div className="text-center p-5 text-slate-500 flex-1 flex items-center justify-center">
@@ -256,7 +246,8 @@ export default function LayerDetailsPanel() {
           <div className="flex-1 overflow-hidden">
             {activeDetailTab.value === 'details' && (
               <div className="h-full overflow-auto">
-                {/* Entry ID */}
+                <ValidationDisplay validation={validation.value} className="mb-4" />
+                
                 <div className="layer-section">
                   <div className="form-group">
                     <label className="form-label">Layer ID</label>
@@ -265,6 +256,29 @@ export default function LayerDetailsPanel() {
                       className="form-input"
                       value={workingEntry.value.id}
                       onChange={(e) => updateDraft({ id: (e.target as HTMLInputElement).value })}
+                      onBlur={(e) => {
+                        const newId = (e.target as HTMLInputElement).value.trim();
+                        if (!newId) return;
+                        
+                        // Check for duplicate IDs
+                        const existingLayers = jsonData.value.layers || [];
+                        const isDuplicate = existingLayers.some((layer, index) => 
+                          layer.id === newId && index !== currentIndex.value
+                        );
+                        
+                        if (isDuplicate) {
+                          setStatus(`❌ Layer ID "${newId}" already exists. Please choose a unique ID.`);
+                          // Generate a unique ID suggestion
+                          let counter = 1;
+                          let suggestedId = `${newId}_${counter}`;
+                          while (existingLayers.some(layer => layer.id === suggestedId)) {
+                            counter++;
+                            suggestedId = `${newId}_${counter}`;
+                          }
+                          updateDraft({ id: suggestedId });
+                          (e.target as HTMLInputElement).value = suggestedId;
+                        }
+                      }}
                       placeholder="unique_layer_id"
                       disabled={!isEditing.value}
                     />
@@ -335,6 +349,19 @@ export default function LayerDetailsPanel() {
                           <div className="text-xs text-slate-400 break-all pl-6">
                             {layer.source || 'No source'}
                           </div>
+                          {!isEditing.value && (
+                            <div className="text-xs text-slate-500 pl-6 mt-1 space-y-0.5">
+                              {layer.options?.opacity !== undefined && layer.options.opacity !== 1 && (
+                                <div>Opacity: {layer.options.opacity}</div>
+                              )}
+                              {layer.zIndex !== undefined && layer.zIndex !== 0 && (
+                                <div>Z-Index: {layer.zIndex}</div>
+                              )}
+                              {layer.refreshInterval && (
+                                <div>Refresh: {layer.refreshInterval}ms ({(layer.refreshInterval / 1000).toFixed(1)}s)</div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {isEditing.value && (
@@ -347,10 +374,30 @@ export default function LayerDetailsPanel() {
                                   value={layer.type}
                                   onChange={(e) => {
                                     const type = (e.target as HTMLSelectElement).value as LayerType;
-                                    // Preserve existing source; merge minimal defaults for options
                                     const defaults = getDefaultLayerConfig(type);
-                                    const mergedOptions = { ...(defaults.options || {}), ...(layer.options || {}) } as any;
-                                    updateSublayer(index, { type, source: layer.source, options: mergedOptions });
+                                    
+                                    // Clean options - only keep generic ones and type-specific ones
+                                    const oldOptions = layer.options || {};
+                                    const cleanOptions: any = {};
+                                    
+                                    // Always preserve these generic options
+                                    if (oldOptions.opacity !== undefined) cleanOptions.opacity = oldOptions.opacity;
+                                    
+                                    // Add type-specific options from defaults
+                                    if (type === 'wms' && defaults.options?.layerNames) {
+                                      cleanOptions.layerNames = defaults.options.layerNames;
+                                    } else if (type === 'portalItem' && defaults.options?.layerId !== undefined) {
+                                      cleanOptions.layerId = defaults.options.layerId;
+                                    }
+                                    
+                                    // Preserve any truly custom options (not type-specific ones)
+                                    Object.entries(oldOptions).forEach(([key, value]) => {
+                                      if (key !== 'layerNames' && key !== 'layerId' && key !== 'opacity') {
+                                        cleanOptions[key] = value;
+                                      }
+                                    });
+                                    
+                                    updateSublayer(index, { type, source: layer.source, options: cleanOptions });
                                   }}
                                 >
                                   {LAYER_TYPES.map((t) => (
@@ -361,11 +408,21 @@ export default function LayerDetailsPanel() {
                               <div>
                                 <label className="block text-slate-400 mb-1">Opacity</label>
                                 <input
-                                  type="number"
+                                  type="text"
                                   className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
-                                  min="0" max="1" step="0.1"
-                                  value={layer.opacity ?? 1}
-                                  onChange={(e) => updateSublayer(index, { opacity: parseFloat((e.target as HTMLInputElement).value) })}
+                                  placeholder="0.0 - 1.0"
+                                  defaultValue={layer.options?.opacity ?? 1}
+                                  onBlur={(e) => {
+                                    // Support both "." and "," as decimal separators
+                                    const rawValue = (e.target as HTMLInputElement).value.replace(',', '.');
+                                    let opacity = parseFloat(rawValue);
+                                    if (isNaN(opacity) || rawValue.trim() === '') opacity = 1;
+                                    if (opacity < 0) opacity = 0;
+                                    if (opacity > 1) opacity = 1;
+                                    updateSublayer(index, { options: { ...layer.options, opacity } });
+                                    // Update the input to show the clamped value with dot notation
+                                    (e.target as HTMLInputElement).value = opacity.toString();
+                                  }}
                                 />
                               </div>
                             </div>
@@ -381,29 +438,45 @@ export default function LayerDetailsPanel() {
                                 />
                               </div>
                               <div>
-                                <label className="block text-slate-400 mb-1">Source URL/ID</label>
+                                <label className="block text-slate-400 mb-1">Refresh Interval (ms)</label>
                                 <input
-                                  type="text"
+                                  type="number"
                                   className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
-                                  value={layer.source || ''}
-                                  onChange={(e) => updateSublayer(index, { source: (e.target as HTMLInputElement).value })}
-                                  placeholder={
-                                    layer.type === 'portalItem' ? 'e.g. abc123def456' :
-                                    layer.type === 'wms' ? 'https://example.com/wms' :
-                                    layer.type === 'tiled' ? 'https://example.com/tiles/{z}/{y}/{x}.png' :
-                                    layer.type === 'vectorTiled' ? 'https://example.com/vectortiles/{z}/{y}/{x}.pbf' :
-                                    layer.type === 'feature' ? 'https://example.com/arcgis/rest/services/FeatureServer/0' :
-                                    'https://example.com/arcgis/rest/services/MapServer'
-                                  }
+                                  value={layer.refreshInterval || ''}
+                                  onChange={(e) => {
+                                    const value = (e.target as HTMLInputElement).value;
+                                    updateSublayer(index, { refreshInterval: value ? parseInt(value) : undefined });
+                                  }}
+                                  placeholder="60000"
+                                  min="0"
+                                  step="1000"
                                 />
-                                <div className="text-[10px] text-slate-500 mt-1">
-                                  {layer.type === 'portalItem' && 'ArcGIS Online portal item ID'}
-                                  {layer.type === 'wms' && 'WMS service endpoint URL'}
-                                  {layer.type === 'tiled' && 'Tile template URL with {z}/{y}/{x}'}
-                                  {layer.type === 'vectorTiled' && 'Vector tile template URL with {z}/{y}/{x}'}
-                                  {layer.type === 'mapImage' && 'ArcGIS REST MapServer endpoint'}
-                                  {layer.type === 'feature' && 'ArcGIS REST FeatureServer endpoint'}
-                                </div>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-slate-400 mb-1">Source URL/ID</label>
+                              <input
+                                type="text"
+                                className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
+                                value={layer.source || ''}
+                                onChange={(e) => updateSublayer(index, { source: (e.target as HTMLInputElement).value })}
+                                placeholder={
+                                  layer.type === 'portalItem' ? 'e.g. abc123def456' :
+                                  layer.type === 'wms' ? 'https://example.com/wms' :
+                                  layer.type === 'tiled' ? 'https://example.com/tiles/{z}/{y}/{x}.png' :
+                                  layer.type === 'vectorTiled' ? 'https://example.com/vectortiles/{z}/{y}/{x}.pbf' :
+                                  layer.type === 'feature' ? 'https://example.com/arcgis/rest/services/FeatureServer/0' :
+                                  'https://example.com/arcgis/rest/services/MapServer'
+                                }
+                              />
+                              <div className="text-[10px] text-slate-500 mt-1">
+                                {layer.type === 'portalItem' && 'ArcGIS Online portal item ID'}
+                                {layer.type === 'wms' && 'WMS service endpoint URL'}
+                                {layer.type === 'tiled' && 'Tile template URL with {z}/{y}/{x}'}
+                                {layer.type === 'vectorTiled' && 'Vector tile template URL with {z}/{y}/{x}'}
+                                {layer.type === 'mapImage' && 'ArcGIS REST MapServer endpoint'}
+                                {layer.type === 'feature' && 'ArcGIS REST FeatureServer endpoint'}
                               </div>
                             </div>
 
@@ -427,9 +500,14 @@ export default function LayerDetailsPanel() {
 
                             {layer.type === 'wms' && (
                               <div>
-                                <label className="block text-slate-400 mb-1">WMS Layer Names</label>
+                                <label className="block text-slate-400 mb-1">WMS Layer Names <span className="text-red-400">*required</span></label>
                                 <div className="space-y-2">
-                                  {(layer.options?.layerNames || []).map((name: string, i: number) => (
+                                  {(layer.options?.layerNames || []).length === 0 && (
+                                    <div className="text-xs text-red-400 mb-2">
+                                      ⚠️ WMS layers require at least one layer name
+                                    </div>
+                                  )}
+                                  {(layer.options?.layerNames || ['layer1']).map((name: string, i: number) => (
                                     <div key={i} className="flex gap-2">
                                       <input
                                         type="text"
@@ -439,6 +517,23 @@ export default function LayerDetailsPanel() {
                                           const names = [...(layer.options?.layerNames || [])];
                                           names[i] = (e.target as HTMLInputElement).value;
                                           updateSublayer(index, { options: { ...(layer.options || {}), layerNames: names } });
+                                        }}
+                                        onBlur={(e) => {
+                                          // Remove empty layer names on blur
+                                          const value = (e.target as HTMLInputElement).value.trim();
+                                          if (!value) {
+                                            const names = [...(layer.options?.layerNames || [])];
+                                            if (names.length > 1) {
+                                              // Only remove if there are other names
+                                              names.splice(i, 1);
+                                              updateSublayer(index, { options: { ...(layer.options || {}), layerNames: names } });
+                                            } else {
+                                              // Reset to placeholder if it's the only one
+                                              (e.target as HTMLInputElement).value = `layer${i + 1}`;
+                                              names[i] = `layer${i + 1}`;
+                                              updateSublayer(index, { options: { ...(layer.options || {}), layerNames: names } });
+                                            }
+                                          }
                                         }}
                                         placeholder={`layer${i + 1}`}
                                       />
@@ -470,6 +565,85 @@ export default function LayerDetailsPanel() {
                                 </div>
                               </div>
                             )}
+
+                            {/* Custom Options Editor */}
+                            <div>
+                              <label className="block text-slate-400 mb-1">Custom Options</label>
+                              <div className="space-y-2">
+                                {Object.entries(layer.options || {}).map(([key, value]) => {
+                                  // Skip special handled fields that have dedicated UI
+                                  if (key === 'layerNames' || key === 'layerId' || key === 'opacity') return null;
+                                  
+                                  return (
+                                    <div key={key} className="flex gap-2 items-center">
+                                      <input
+                                        type="text"
+                                        className="w-1/3 px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
+                                        value={key}
+                                        onChange={(e) => {
+                                          const newKey = (e.target as HTMLInputElement).value;
+                                          const newOptions = { ...(layer.options || {}) };
+                                          if (newKey !== key) {
+                                            delete newOptions[key];
+                                            if (newKey.trim()) {
+                                              newOptions[newKey] = value;
+                                            }
+                                            updateSublayer(index, { options: newOptions });
+                                          }
+                                        }}
+                                        placeholder="key"
+                                      />
+                                      <span className="text-slate-500">:</span>
+                                      <input
+                                        type="text"
+                                        className="flex-1 px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
+                                        value={typeof value === 'string' ? value : JSON.stringify(value)}
+                                        onChange={(e) => {
+                                          let newValue: any = (e.target as HTMLInputElement).value;
+                                          // Try to parse as number or boolean
+                                          if (newValue === 'true') newValue = true;
+                                          else if (newValue === 'false') newValue = false;
+                                          else if (!isNaN(Number(newValue)) && newValue.trim() !== '') {
+                                            newValue = Number(newValue);
+                                          }
+                                          
+                                          const newOptions = { ...(layer.options || {}) };
+                                          newOptions[key] = newValue;
+                                          updateSublayer(index, { options: newOptions });
+                                        }}
+                                        placeholder="value"
+                                      />
+                                      <button
+                                        type="button"
+                                        className="btn tiny danger"
+                                        onClick={() => {
+                                          const newOptions = { ...(layer.options || {}) };
+                                          delete newOptions[key];
+                                          updateSublayer(index, { options: newOptions });
+                                        }}
+                                        title="Remove option"
+                                      >
+                                        ×
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                                <button
+                                  type="button"
+                                  className="btn tiny"
+                                  onClick={() => {
+                                    const newOptions = { ...(layer.options || {}) };
+                                    newOptions['newOption'] = '';
+                                    updateSublayer(index, { options: newOptions });
+                                  }}
+                                >
+                                  + Add Custom Option
+                                </button>
+                              </div>
+                              <div className="text-[10px] text-slate-500 mt-1">
+                                Add custom properties. Values are auto-parsed (numbers, booleans, or strings).
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>

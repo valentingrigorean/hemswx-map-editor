@@ -1,10 +1,16 @@
 import { setStatus, updateJsonData } from '../lib/jsonStore';
+import { getDefaultData } from '../lib/utils';
 
 interface EmptyStateProps {
   onOpenClick: () => void;
 }
 
 export default function EmptyState({ onOpenClick }: EmptyStateProps) {
+  const handleStartEmpty = () => {
+    updateJsonData(getDefaultData());
+    setStatus('✅ Started with empty JSON structure');
+  };
+
   const handlePaste = (e: ClipboardEvent) => {
     const text = e.clipboardData?.getData('text');
     if (!text) return;
@@ -50,12 +56,13 @@ export default function EmptyState({ onOpenClick }: EmptyStateProps) {
         onDrop={handleDrop}
         onDragOver={handleDragOver}
       >
-        <h2 className="text-lg mb-2 text-slate-100">Drop your JSON here</h2>
-        <p className="mb-4 text-slate-400">or</p>
+        <h2 className="text-lg mb-2 text-slate-100">Get Started</h2>
+        <p className="mb-4 text-slate-400">Choose an option to begin</p>
         <div className="flex flex-col gap-2 items-center">
-          <button className="btn primary" onClick={onOpenClick}>Click to Open JSON…</button>
+          <button className="btn primary" onClick={handleStartEmpty}>Start with Empty Structure</button>
+          <button className="btn" onClick={onOpenClick}>Open Existing JSON…</button>
         </div>
-        <div className="mt-4 text-xs text-slate-500">Tip: You can also paste JSON here</div>
+        <div className="mt-4 text-xs text-slate-500">Tip: You can also drop JSON files here or paste JSON</div>
       </div>
     </div>
   );

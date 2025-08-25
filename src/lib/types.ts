@@ -18,12 +18,13 @@ export interface MapFeature {
 // A single renderable layer definition (sublayer)
 export interface LayerConfig {
   type: 'wms' | 'tiled' | 'mapImage' | 'portalItem' | 'vectorTiled' | 'feature';
-  source?: string;
-  opacity?: number;
+  source: string; // Required field per Dart model
   zIndex?: number;
+  refreshInterval?: number;
   options?: {
     layerId?: string | number;
     layerNames?: string[];
+    opacity?: number; // Moved here to match Dart model where it's in options map
     [key: string]: any;
   };
 }

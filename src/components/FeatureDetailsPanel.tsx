@@ -13,8 +13,10 @@ import {
 import { MapFeature } from '../lib/types';
 import { isCustomLogicLayer } from '../lib/settings';
 import { autoSyncFeatureTranslations, SUPPORTED_LANGUAGES } from '../lib/intl';
+import { validateFeature } from '../lib/validation';
 import JsonEditor from './JsonEditor';
 import IntlEditor from './IntlEditor';
+import ValidationDisplay from './ValidationDisplay';
 
 interface LayerMultiSelectProps {
   selectedLayerIds: string[];
@@ -206,12 +208,13 @@ const DETAIL_TABS = [
   { id: 'json', label: 'JSON' }
 ] as const;
 
-// Helper function similar to Dart's UIFeatureEntityExtension
+// Helper function matching Dart's UIFeatureEntityExtension.identifier exactly
 const getFeatureIdentifier = (feature: MapFeature | null): string => {
   if (!feature) return '';
   
   const value = feature.id || feature.name;
-  if (value?.trim()) {
+  // Match Dart's isNotEmpty check (don't use trim() like before)
+  if (value && value.length > 0) {
     return value;
   }
   
@@ -285,6 +288,12 @@ export default function FeatureDetailsPanel() {
 
   const identifier = useComputed(() => {
     return getFeatureIdentifier(working.value) || 'No ID';
+  });
+
+  const validation = useComputed(() => {
+    const feature = working.value;
+    if (!feature) return null;
+    return validateFeature(feature);
   });
 
   const isSingleWithOneItem = useComputed(() => {
@@ -389,14 +398,21 @@ export default function FeatureDetailsPanel() {
     }
 
     // Validate feature name and ID (if provided, must not be empty strings)
+    // For single presentation with one item, empty name/id is allowed (inherits from item)
+    const isSingleWithOneItem = draftVal.presentation === 'single' && draftVal.items.length === 1;
+    
     if (draftVal.name !== undefined && draftVal.name !== null && !draftVal.name.trim()) {
-      setStatus('❌ Feature name cannot be empty string (leave blank to inherit from item)');
-      return;
+      if (!isSingleWithOneItem) {
+        setStatus('❌ Feature name cannot be empty string (leave blank to inherit from item)');
+        return;
+      }
     }
 
     if (draftVal.id !== undefined && draftVal.id !== null && !draftVal.id.trim()) {
-      setStatus('❌ Feature ID cannot be empty string (leave blank to inherit from item)');
-      return;
+      if (!isSingleWithOneItem) {
+        setStatus('❌ Feature ID cannot be empty string (leave blank to inherit from item)');
+        return;
+      }
     }
 
     // Validate that each item has required fields
@@ -674,6 +690,8 @@ export default function FeatureDetailsPanel() {
           <div className="flex-1 overflow-hidden">
             {activeDetailTab.value === 'details' && (
               <div className="h-full overflow-auto">
+                <ValidationDisplay validation={validation.value} className="mb-4" />
+                
                 {/* Inheritance Suggestion */}
                 {shouldInheritFromItem.value && isEditing.value && (
                   <div className="bg-blue-900/30 border border-blue-500/50 rounded p-3 mb-4">

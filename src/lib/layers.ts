@@ -5,10 +5,10 @@ export const LAYER_TYPES = ['wms', 'tiled', 'mapImage', 'portalItem', 'vectorTil
 export type LayerType = typeof LAYER_TYPES[number];
 
 export const getDefaultLayerConfig = (type: LayerType): LayerConfig => {
-  const base: LayerConfig = { type, opacity: 1, zIndex: 0 };
+  const base: LayerConfig = { type, source: '', zIndex: 0, options: { opacity: 1 } };
   switch (type) {
     case 'wms':
-      return { ...base, source: 'https://example.com/wms', options: { layerNames: ['layer1'] } };
+      return { ...base, source: 'https://example.com/wms', options: { layerNames: ['layer1'], opacity: 1 } };
     case 'tiled':
       return { ...base, source: 'https://example.com/tiles/{z}/{y}/{x}.png' };
     case 'vectorTiled':
@@ -18,7 +18,7 @@ export const getDefaultLayerConfig = (type: LayerType): LayerConfig => {
     case 'feature':
       return { ...base, source: 'https://example.com/arcgis/rest/services/FeatureServer/0' };
     case 'portalItem':
-      return { ...base, source: 'portal-item-id', options: { layerId: 0 } };
+      return { ...base, source: 'portal-item-id', options: { layerId: 0, opacity: 1 } };
     default:
       return base;
   }
@@ -56,12 +56,24 @@ export const validateLayer = (layer: LayerConfig): { valid: boolean; errors: str
     }
   }
   
-  if (layer.opacity !== undefined && (layer.opacity < 0 || layer.opacity > 1)) {
-    errors.push('Opacity must be a number between 0.0 (transparent) and 1.0 (opaque)');
+  // Opacity validation - now in options per Dart model
+  if (layer.options?.opacity !== undefined) {
+    const opacity = layer.options.opacity;
+    if (typeof opacity !== 'number' || opacity < 0 || opacity > 1) {
+      errors.push('Opacity (in options) must be a number between 0.0 (transparent) and 1.0 (opaque)');
+    }
   }
   
   if (layer.zIndex !== undefined && !Number.isInteger(layer.zIndex)) {
     errors.push('Z-Index must be a whole number (determines layer stacking order)');
+  }
+  
+  if (layer.refreshInterval !== undefined) {
+    if (typeof layer.refreshInterval !== 'number' || layer.refreshInterval < 0) {
+      errors.push('Refresh interval must be a positive number (milliseconds)');
+    } else if (!Number.isInteger(layer.refreshInterval)) {
+      errors.push('Refresh interval must be a whole number of milliseconds');
+    }
   }
   
   return { valid: errors.length === 0, errors };

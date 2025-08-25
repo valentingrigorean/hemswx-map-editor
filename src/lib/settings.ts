@@ -7,7 +7,7 @@ export interface AppSettings {
 const SETTINGS_KEY = 'hemswx-map-editor-settings';
 
 const defaultSettings: AppSettings = {
-  customLogicLayers: new Set()
+  customLogicLayers: new Set(['aviation_obstacle'])
 };
 
 // Load settings from localStorage
@@ -17,13 +17,13 @@ const loadSettings = (): AppSettings => {
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
-        customLogicLayers: new Set(parsed.customLogicLayers || [])
+        customLogicLayers: new Set(parsed.customLogicLayers || ['aviation_obstacle'])
       };
     }
   } catch (error) {
     console.warn('Failed to load settings:', error);
   }
-  return defaultSettings;
+  return { ...defaultSettings, customLogicLayers: new Set(['aviation_obstacle']) };
 };
 
 // Save settings to localStorage

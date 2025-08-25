@@ -42,6 +42,65 @@ export const validateJSON = (text: string): ValidationResult => {
     }
   }
   
+  // Feature validation - required fields per Dart model
+  const allFeatures = [...(parsed.weatherFeatures || []), ...(parsed.features || [])];
+  allFeatures.forEach((feature: any, index: number) => {
+    const featureType = index < (parsed.weatherFeatures?.length || 0) ? 'weatherFeature' : 'feature';
+    const featureIndex = index < (parsed.weatherFeatures?.length || 0) 
+      ? index 
+      : index - (parsed.weatherFeatures?.length || 0);
+    
+    // Required: presentation field
+    if (!feature.presentation || !['single', 'multiple'].includes(feature.presentation)) {
+      errors.push(`${featureType} ${featureIndex + 1}: presentation field is required and must be "single" or "multiple"`);
+    }
+    
+    // Required: items array (non-null, array)
+    if (!feature.items || !Array.isArray(feature.items)) {
+      errors.push(`${featureType} ${featureIndex + 1}: items field is required and must be an array`);
+    } else {
+      // Validate each item has required fields
+      feature.items.forEach((item: any, itemIndex: number) => {
+        if (!item.id || typeof item.id !== 'string' || item.id.trim() === '') {
+          errors.push(`${featureType} ${featureIndex + 1}, item ${itemIndex + 1}: id is required and cannot be empty`);
+        }
+        if (!item.name || typeof item.name !== 'string' || item.name.trim() === '') {
+          errors.push(`${featureType} ${featureIndex + 1}, item ${itemIndex + 1}: name is required and cannot be empty`);
+        }
+        if (!item.layersIds || !Array.isArray(item.layersIds) || item.layersIds.length === 0) {
+          errors.push(`${featureType} ${featureIndex + 1}, item ${itemIndex + 1}: layersIds is required and must be a non-empty array`);
+        }
+      });
+    }
+  });
+
+  // Layer validation - required fields per Dart model
+  if (parsed.layers && Array.isArray(parsed.layers)) {
+    parsed.layers.forEach((layer: any, layerIndex: number) => {
+      // Required: id field
+      if (!layer.id || typeof layer.id !== 'string' || layer.id.trim() === '') {
+        errors.push(`layer ${layerIndex + 1}: id is required and cannot be empty`);
+      }
+      
+      // Required: layers array
+      if (!layer.layers || !Array.isArray(layer.layers) || layer.layers.length === 0) {
+        errors.push(`layer ${layerIndex + 1}: layers field is required and must be a non-empty array`);
+      } else {
+        // Validate each sublayer
+        layer.layers.forEach((sublayer: any, sublayerIndex: number) => {
+          // Required: type field
+          if (!sublayer.type || typeof sublayer.type !== 'string') {
+            errors.push(`layer ${layerIndex + 1}, sublayer ${sublayerIndex + 1}: type is required`);
+          }
+          // Required: source field
+          if (!sublayer.source || typeof sublayer.source !== 'string' || sublayer.source.trim() === '') {
+            errors.push(`layer ${layerIndex + 1}, sublayer ${sublayerIndex + 1}: source is required and cannot be empty`);
+          }
+        });
+      }
+    });
+  }
+
   // Layer ID validation
   try {
     const usedLayerIds = collectReferencedLayerIds(parsed as MapLayersData);

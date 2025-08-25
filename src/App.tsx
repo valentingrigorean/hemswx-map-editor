@@ -2,7 +2,6 @@ import { useRef, useEffect } from 'preact/hooks';
 import { useSignal } from '@preact/signals';
 import {
   activeTab,
-  statusMessage,
   dataSummary,
   hasJson,
   setStatus,
@@ -88,9 +87,8 @@ function App() {
           <button className="btn" onClick={handleLoadFile}>
             Open JSON…
           </button>
-          <div className="ml-auto flex flex-col items-end gap-1">
+          <div className="ml-auto">
             {hasJson.value && <span className="text-slate-500">{dataSummary.value}</span>}
-            <div className="text-xs max-w-[300px] text-right text-slate-500">{statusMessage.value}</div>
           </div>
         </header>
       )}

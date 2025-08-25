@@ -28,7 +28,6 @@ export const featureDrafts = signal<{
 export const activeTab = signal<'features' | 'layers' | 'tools' | 'internationalization' | 'stats'>('features');
 export const activeRightTab = signal<'json' | 'feature' | 'layer'>('json');
 export const activeIntlLang = signal<'en' | 'da' | 'nb' | 'sv'>('en');
-export const statusMessage = signal<string>('Ready');
 
 
 // Computed values
@@ -96,13 +95,6 @@ export const loadLastJsonData = () => {
 };
 
 export const setStatus = (message: string) => {
-  statusMessage.value = message;
-  // Auto-clear status after 5 seconds
-  setTimeout(() => {
-    if (statusMessage.value === message) {
-      statusMessage.value = 'Ready';
-    }
-  }, 5000);
 };
 
 export const selectFeature = (type: 'weatherFeatures' | 'features', index: number) => {
