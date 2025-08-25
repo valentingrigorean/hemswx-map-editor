@@ -18,9 +18,9 @@ import {
   getDefaultLayerConfig,
   getDefaultLayerEntry,
   LAYER_TYPES,
-  validateLayerEntry,
   upsertLayerEntry
 } from '../lib/layers';
+import { validateLayerEntry } from '../lib/validation';
 import { getLayerUsage } from '../lib/utils';
 import { isCustomLogicLayer } from '../lib/settings';
 import JsonEditor from './JsonEditor';
@@ -35,6 +35,7 @@ export default function LayerDetailsPanel() {
   const currentIndex = useComputed(() => selectedLayer.value.index);
   const currentEntry = selectedLayerData; // LayerEntry | null
   const activeDetailTab = useSignal<'details' | 'json'>('details');
+  const validationErrors = useSignal<string[]>([]);
 
   const draftKey = useComputed<number | null>(() => (currentIndex.value >= 0 ? currentIndex.value : null));
 
