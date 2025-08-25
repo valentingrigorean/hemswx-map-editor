@@ -166,43 +166,96 @@ public/
 
 ## 🚀 Deployment
 
-### GitHub Pages
-1. **Update Configuration** - Edit `vite.config.ts` to set the correct base path:
-   ```typescript
-   export default defineConfig({
-     base: '/your-repository-name/',
-     // ... other config
-   });
-   ```
+### Quick Deploy to GitHub Pages
 
-2. **Deploy via GitHub Actions** - Create `.github/workflows/deploy.yml`:
-   ```yaml
-   name: Deploy to GitHub Pages
-   
-   on:
-     push:
-       branches: [ main ]
-   
-   jobs:
-     build-and-deploy:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v3
-         - uses: actions/setup-node@v3
-           with:
-             node-version: '18'
-         - run: npm ci
-         - run: npm run build
-         - uses: peaceiris/actions-gh-pages@v3
-           with:
-             github_token: ${{ secrets.GITHUB_TOKEN }}
-             publish_dir: ./dist
-   ```
+The easiest way to deploy is using the built-in deploy script:
 
-3. **Manual Deployment** - Using gh-pages package:
+```bash
+# Build and deploy in one command
+npm run deploy
+```
+
+This command will:
+1. Build the production version (`npm run build`)
+2. Deploy the `dist/` folder to the `gh-pages` branch
+3. Make the site available at `https://yourusername.github.io/hemswx-map-editor/`
+
+### Manual GitHub Pages Setup
+
+If this is your first deployment:
+
+1. **Enable GitHub Pages** in your repository settings:
+   - Go to Settings → Pages
+   - Set Source to "Deploy from a branch"
+   - Select `gh-pages` branch and `/ (root)` folder
+   - Save
+
+2. **Deploy your changes**:
    ```bash
    npm run deploy
    ```
+
+3. **Your site will be live** at the URL shown in repository Settings → Pages
+
+### Configuration Notes
+
+- ✅ **Base path**: Already configured as `/hemswx-map-editor/` in `vite.config.ts`
+- ✅ **Deploy script**: Already set up in `package.json`
+- ✅ **gh-pages package**: Already installed and ready to use
+
+### Deployment Checklist
+
+Before deploying:
+- [ ] Test the build locally: `npm run build && npm run preview`
+- [ ] Commit and push your changes to main branch
+- [ ] Run `npm run deploy`
+- [ ] Check the live site after 1-2 minutes
+
+### Alternative: GitHub Actions (Auto-deploy)
+
+For automatic deployment on every push to main, create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v2
+        with:
+          path: ./dist
+      - uses: actions/deploy-pages@v2
+```
+
+### Troubleshooting
+
+**404 errors on refresh?**
+- This is normal for SPAs on GitHub Pages
+- The app handles client-side routing correctly
+
+**Build fails?**
+- Check that all dependencies are installed: `npm install`
+- Ensure TypeScript compilation passes: `npm run build`
+
+**Wrong base path?**
+- Update `base: '/your-repo-name/'` in `vite.config.ts`
+- Must match your GitHub repository name exactly
 
 ### Other Static Hosts
 The built application (`/dist` folder) can be deployed to:
