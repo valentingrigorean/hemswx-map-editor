@@ -33,13 +33,26 @@ export default function JsonEditor({
 
   const cmdKey = useComputed(() => isMac.value ? 'Cmd' : 'Ctrl');
 
+  // Custom replacer to ensure opacity values are displayed as decimals
+  const opacityReplacer = (key: string, value: any) => {
+    // For opacity fields, ensure they are formatted as decimals
+    if (key === 'opacity' && typeof value === 'number') {
+      // Return as string to preserve decimal formatting
+      return parseFloat(value.toFixed(1));
+    }
+    return value;
+  };
+
   // Convert value to formatted JSON string
   const jsonString = useComputed(() => {
     try {
       if (value === null || value === undefined) {
         return '';
       }
-      return JSON.stringify(value, null, 2);
+      // Use custom replacer for consistent opacity formatting
+      const jsonStr = JSON.stringify(value, opacityReplacer, 2);
+      // Post-process to ensure opacity values show as decimals
+      return jsonStr.replace(/"opacity":\s*(\d+)(?!\.)/g, '"opacity": $1.0');
     } catch (error) {
       return '';
     }
@@ -108,19 +121,21 @@ export default function JsonEditor({
     if (!editorRef.current || !monacoRef.current || readOnly) return;
 
     isFormatting.value = true;
-    
+
     try {
       // Get current value and try to parse/format it
       const currentValue = editorRef.current.getValue();
       const parsed = JSON.parse(currentValue);
-      const formatted = JSON.stringify(parsed, null, 2);
-      
+      // Use the same formatting logic as jsonString
+      const jsonStr = JSON.stringify(parsed, opacityReplacer, 2);
+      const formatted = jsonStr.replace(/"opacity":\s*(\d+)(?!\.)/g, '"opacity": $1.0');
+
       // Set the formatted value
       editorRef.current.setValue(formatted);
-      
+
       // Trigger the change handler
       onChange(parsed);
-      
+
       isValidJson.value = true;
       errorMessage.value = '';
     } catch (error) {

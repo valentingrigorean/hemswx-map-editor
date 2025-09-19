@@ -409,20 +409,19 @@ export default function LayerDetailsPanel() {
                               <div>
                                 <label className="block text-slate-400 mb-1">Opacity</label>
                                 <input
-                                  type="text"
+                                  type="number"
                                   className="w-full px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"
                                   placeholder="0.0 - 1.0"
-                                  defaultValue={layer.options?.opacity ?? 1}
-                                  onBlur={(e) => {
-                                    // Support both "." and "," as decimal separators
-                                    const rawValue = (e.target as HTMLInputElement).value.replace(',', '.');
-                                    let opacity = parseFloat(rawValue);
-                                    if (isNaN(opacity) || rawValue.trim() === '') opacity = 1;
+                                  min="0"
+                                  max="1"
+                                  step="0.1"
+                                  value={layer.options?.opacity ?? 1}
+                                  onChange={(e) => {
+                                    let opacity = parseFloat((e.target as HTMLInputElement).value);
+                                    if (isNaN(opacity)) opacity = 1;
                                     if (opacity < 0) opacity = 0;
                                     if (opacity > 1) opacity = 1;
                                     updateSublayer(index, { options: { ...layer.options, opacity } });
-                                    // Update the input to show the clamped value with dot notation
-                                    (e.target as HTMLInputElement).value = opacity.toString();
                                   }}
                                 />
                               </div>
