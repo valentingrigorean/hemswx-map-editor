@@ -129,3 +129,33 @@ export const getDefaultData = (): MapLayersData => ({
     sv: {}
   }
 });
+
+/**
+ * Extracts map layers data from either:
+ * - Direct MapLayersData format (weatherFeatures, features, layers, intl at root)
+ * - Server response format with map_layers wrapper (e.g., server-data.json)
+ */
+export const extractMapLayersData = (data: any): MapLayersData => {
+  if (!data || typeof data !== 'object') {
+    return getDefaultData();
+  }
+
+  // Check if data has map_layers wrapper (server response format)
+  if (data.map_layers && typeof data.map_layers === 'object') {
+    const mapLayers = data.map_layers;
+    return {
+      weatherFeatures: mapLayers.weatherFeatures || [],
+      features: mapLayers.features || [],
+      layers: mapLayers.layers || [],
+      intl: mapLayers.intl || { en: {}, da: {}, nb: {}, sv: {} }
+    };
+  }
+
+  // Direct format - ensure required fields exist
+  return {
+    weatherFeatures: data.weatherFeatures || [],
+    features: data.features || [],
+    layers: data.layers || [],
+    intl: data.intl || { en: {}, da: {}, nb: {}, sv: {} }
+  };
+};

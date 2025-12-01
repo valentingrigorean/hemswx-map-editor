@@ -570,12 +570,12 @@ export default function LayerDetailsPanel() {
                             <div>
                               <label className="block text-slate-400 mb-1">Custom Options</label>
                               <div className="space-y-2">
-                                {Object.entries(layer.options || {}).map(([key, value]) => {
+                                {Object.entries(layer.options || {}).map(([key, value], optionIndex) => {
                                   // Skip special handled fields that have dedicated UI
                                   if (key === 'layerNames' || key === 'layerId' || key === 'opacity') return null;
-                                  
+
                                   return (
-                                    <div key={key} className="flex gap-2 items-center">
+                                    <div key={`option-${optionIndex}`} className="flex gap-2 items-center">
                                       <input
                                         type="text"
                                         className="w-1/3 px-2 py-1 text-xs bg-slate-800 border border-slate-600 rounded"

@@ -1,5 +1,5 @@
 import { setStatus, updateJsonData } from '../lib/jsonStore';
-import { getDefaultData } from '../lib/utils';
+import { getDefaultData, extractMapLayersData } from '../lib/utils';
 
 interface EmptyStateProps {
   onOpenClick: () => void;
@@ -15,9 +15,11 @@ export default function EmptyState({ onOpenClick }: EmptyStateProps) {
     const text = e.clipboardData?.getData('text');
     if (!text) return;
     try {
-      const data = JSON.parse(text);
+      const rawData = JSON.parse(text);
+      const data = extractMapLayersData(rawData);
       updateJsonData(data);
-      setStatus('✅ JSON pasted from clipboard');
+      const isWrapped = rawData.map_layers !== undefined;
+      setStatus(`✅ JSON pasted from clipboard${isWrapped ? ' (extracted from map_layers)' : ''}`);
     } catch {
       // ignore non-JSON
     }
@@ -33,9 +35,11 @@ export default function EmptyState({ onOpenClick }: EmptyStateProps) {
         const text = event.target?.result as string;
         if (text) {
           try {
-            const data = JSON.parse(text);
+            const rawData = JSON.parse(text);
+            const data = extractMapLayersData(rawData);
             updateJsonData(data);
-            setStatus('✅ JSON file loaded successfully');
+            const isWrapped = rawData.map_layers !== undefined;
+            setStatus(`✅ JSON file loaded successfully${isWrapped ? ' (extracted from map_layers)' : ''}`);
           } catch (error) {
             setStatus('❌ Invalid JSON dropped');
           }

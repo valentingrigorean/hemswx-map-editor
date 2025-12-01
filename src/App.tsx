@@ -23,7 +23,7 @@ import EmptyState from './components/EmptyState';
 import './styles/globals.css';
 import { validateJSON } from './lib/parse';
 import { formatJSON } from './lib/parse';
-import { downloadBlob } from './lib/utils';
+import { downloadBlob, extractMapLayersData } from './lib/utils';
 
 const APP_TABS = [
   { id: 'features', label: 'Features' },
@@ -65,9 +65,11 @@ function App() {
               const text = event.target?.result as string;
               if (text) {
                 try {
-                  const data = JSON.parse(text);
+                  const rawData = JSON.parse(text);
+                  const data = extractMapLayersData(rawData);
                   updateJsonData(data);
-                  setStatus('✅ JSON file loaded successfully');
+                  const isWrapped = rawData.map_layers !== undefined;
+                  setStatus(`✅ JSON file loaded successfully${isWrapped ? ' (extracted from map_layers)' : ''}`);
                 } catch (error) {
                   setStatus(`❌ Invalid JSON: ${error instanceof Error ? error.message : 'Parse error'}`);
                 }
