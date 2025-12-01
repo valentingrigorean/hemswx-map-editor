@@ -7,13 +7,11 @@ import {
   setStatus,
   jsonData,
   updateJsonData,
-  loadLastJsonData
+  loadLastJsonData,
+  selectedTranslationKey
 } from './lib/jsonStore';
 import JsonEditor from './components/JsonEditor';
-import GroupsPanel from './components/GroupsPanel';
-import LayerBuilder from './components/LayerBuilder';
-import LayerDetailsPanel from './components/LayerDetailsPanel';
-import FeatureDetailsPanel from './components/FeatureDetailsPanel';
+import WorkspacePanel from './components/WorkspacePanel';
 import StatusBar from './components/StatusBar';
 import I18nTable from './components/I18nTable';
 import TranslationKeysBrowser from './components/TranslationKeysBrowser';
@@ -22,20 +20,17 @@ import SettingsPanel from './components/SettingsPanel';
 import EmptyState from './components/EmptyState';
 import './styles/globals.css';
 import { validateJSON } from './lib/parse';
-import { formatJSON } from './lib/parse';
 import { downloadBlob, extractMapLayersData } from './lib/utils';
 
 const APP_TABS = [
-  { id: 'features', label: 'Features' },
-  { id: 'layers', label: 'Layers' },
-  { id: 'internationalization', label: 'i18n' },
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'internationalization', label: 'Translations' },
   { id: 'json', label: 'JSON' },
   { id: 'settings', label: 'Settings' }
 ] as const;
 
 function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const selectedTranslationKey = useSignal<string | null>(null);
   const i18nViewMode = useSignal<'split' | 'table'>('split');
 
   // Auto-load last session on app start
@@ -43,6 +38,23 @@ function App() {
     if (!hasJson.value) {
       loadLastJsonData();
     }
+  }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle if Cmd/Ctrl is pressed
+      if (!(e.metaKey || e.ctrlKey)) return;
+
+      // Prevent Cmd+S from showing browser save dialog
+      if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, []);
 
   const handleLoadFile = () => {
@@ -119,29 +131,13 @@ function App() {
           </div>
 
           {/* Tab Views */}
-          {/* Features: split view */}
-          {activeTab.value === 'features' && (
-            <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
-              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
-                <GroupsPanel />
-              </div>
-              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
-                <FeatureDetailsPanel />
-              </div>
-            </div>
-          )}
-
-          {/* Layers: split view */}
-          {activeTab.value === 'layers' && (
-            <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
-              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
-                <LayerBuilder />
-              </div>
-              <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
-                <LayerDetailsPanel />
-              </div>
-            </div>
-          )}
+          {/* Unified Workspace - kept mounted to preserve state */}
+          <div
+            className="h-[calc(100vh-180px)]"
+            style={{ display: activeTab.value === 'workspace' ? 'block' : 'none' }}
+          >
+            <WorkspacePanel />
+          </div>
 
           {/* i18n: view mode toggle and content */}
           {activeTab.value === 'internationalization' && (
@@ -175,9 +171,9 @@ function App() {
                 <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
                   <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
                     <div className="flex-1 min-h-0 overflow-auto">
-                      <TranslationKeysBrowser 
+                      <TranslationKeysBrowser
                         selectedKey={selectedTranslationKey.value}
-                        onSelectKey={(key) => selectedTranslationKey.value = key}
+                        onSelectKey={(key) => (selectedTranslationKey.value = key)}
                       />
                     </div>
                   </div>

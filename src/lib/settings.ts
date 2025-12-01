@@ -2,12 +2,14 @@ import { signal, computed } from '@preact/signals';
 
 export interface AppSettings {
   customLogicLayers: Set<string>;
+  nonTranslatableKeys: Set<string>;
 }
 
 const SETTINGS_KEY = 'hemswx-map-editor-settings';
 
 const defaultSettings: AppSettings = {
-  customLogicLayers: new Set(['aviation_obstacle'])
+  customLogicLayers: new Set(['aviation_obstacle']),
+  nonTranslatableKeys: new Set()
 };
 
 // Load settings from localStorage
@@ -17,20 +19,22 @@ const loadSettings = (): AppSettings => {
     if (stored) {
       const parsed = JSON.parse(stored);
       return {
-        customLogicLayers: new Set(parsed.customLogicLayers || ['aviation_obstacle'])
+        customLogicLayers: new Set(parsed.customLogicLayers || ['aviation_obstacle']),
+        nonTranslatableKeys: new Set(parsed.nonTranslatableKeys || [])
       };
     }
   } catch (error) {
     console.warn('Failed to load settings:', error);
   }
-  return { ...defaultSettings, customLogicLayers: new Set(['aviation_obstacle']) };
+  return { ...defaultSettings };
 };
 
 // Save settings to localStorage
 const saveSettings = (settings: AppSettings) => {
   try {
     const serializable = {
-      customLogicLayers: Array.from(settings.customLogicLayers)
+      customLogicLayers: Array.from(settings.customLogicLayers),
+      nonTranslatableKeys: Array.from(settings.nonTranslatableKeys)
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(serializable));
   } catch (error) {
@@ -70,5 +74,36 @@ export const toggleCustomLogicLayer = (layerId: string) => {
     removeCustomLogicLayer(layerId);
   } else {
     addCustomLogicLayer(layerId);
+  }
+};
+
+// Non-translatable keys helpers
+export const nonTranslatableKeys = computed(() => settings.value.nonTranslatableKeys);
+
+export const addNonTranslatableKey = (key: string) => {
+  const newKeys = new Set(settings.value.nonTranslatableKeys);
+  newKeys.add(key);
+  const newSettings = { ...settings.value, nonTranslatableKeys: newKeys };
+  settings.value = newSettings;
+  saveSettings(newSettings);
+};
+
+export const removeNonTranslatableKey = (key: string) => {
+  const newKeys = new Set(settings.value.nonTranslatableKeys);
+  newKeys.delete(key);
+  const newSettings = { ...settings.value, nonTranslatableKeys: newKeys };
+  settings.value = newSettings;
+  saveSettings(newSettings);
+};
+
+export const isNonTranslatableKey = (key: string): boolean => {
+  return settings.value.nonTranslatableKeys.has(key);
+};
+
+export const toggleNonTranslatableKey = (key: string) => {
+  if (isNonTranslatableKey(key)) {
+    removeNonTranslatableKey(key);
+  } else {
+    addNonTranslatableKey(key);
   }
 };

@@ -3,6 +3,7 @@ import { useComputed, useSignal } from '@preact/signals';
 import { jsonData, syncMissingTranslations } from '../lib/jsonStore';
 import { SUPPORTED_LANGUAGES } from '../lib/intl';
 import { collectItemIds } from '../lib/utils';
+import { isNonTranslatableKey } from '../lib/settings';
 
 interface TranslationKeyItemProps {
   translationKey: string;
@@ -12,7 +13,8 @@ interface TranslationKeyItemProps {
 
 function TranslationKeyItem({ translationKey, isSelected, onSelect }: TranslationKeyItemProps) {
   const data = useComputed(() => jsonData.value);
-  
+  const isNonTranslatable = isNonTranslatableKey(translationKey);
+
   // Count missing translations for this key
   const missingCount = useMemo(() => {
     return SUPPORTED_LANGUAGES.reduce((count, lang) => {
@@ -29,33 +31,47 @@ function TranslationKeyItem({ translationKey, isSelected, onSelect }: Translatio
   }, [translationKey, data.value]);
 
   return (
-    <div 
+    <div
       className={`feature-list-item ${isSelected ? 'selected' : ''}`}
       onClick={onSelect}
     >
       <div className="feature-info">
         <div className="feature-name">{translationKey}</div>
         <div className="feature-details">
-          {SUPPORTED_LANGUAGES.length - missingCount}/{SUPPORTED_LANGUAGES.length} languages
-          {missingCount > 0 && ` • ${missingCount} missing`}
-          {!hasTranslations && ' • No translations'}
+          {isNonTranslatable ? (
+            'Uses item name directly'
+          ) : (
+            <>
+              {SUPPORTED_LANGUAGES.length - missingCount}/{SUPPORTED_LANGUAGES.length} languages
+              {missingCount > 0 && ` • ${missingCount} missing`}
+              {!hasTranslations && ' • No translations'}
+            </>
+          )}
         </div>
       </div>
       <div className="feature-actions">
-        {missingCount > 0 && (
-          <span className="pill warn">
-            Missing {missingCount}
+        {isNonTranslatable ? (
+          <span className="pill" style={{ background: '#475569' }}>
+            🔒
           </span>
-        )}
-        {!hasTranslations && (
-          <span className="pill bad">
-            Empty
-          </span>
-        )}
-        {missingCount === 0 && hasTranslations && (
-          <span className="pill ok">
-            Complete
-          </span>
+        ) : (
+          <>
+            {missingCount > 0 && (
+              <span className="pill warn">
+                Missing {missingCount}
+              </span>
+            )}
+            {!hasTranslations && (
+              <span className="pill bad">
+                Empty
+              </span>
+            )}
+            {missingCount === 0 && hasTranslations && (
+              <span className="pill ok">
+                Complete
+              </span>
+            )}
+          </>
         )}
       </div>
     </div>

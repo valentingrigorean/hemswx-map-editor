@@ -1,6 +1,6 @@
 import { useComputed } from '@preact/signals';
 import { jsonData } from '../lib/jsonStore';
-import { settings, toggleCustomLogicLayer, isCustomLogicLayer } from '../lib/settings';
+import { settings, toggleCustomLogicLayer, isCustomLogicLayer, removeNonTranslatableKey } from '../lib/settings';
 
 export default function SettingsPanel() {
   const allLayerIds = useComputed(() => {
@@ -8,6 +8,7 @@ export default function SettingsPanel() {
   });
 
   const customLogicLayers = useComputed(() => settings.value.customLogicLayers);
+  const nonTranslatableKeys = useComputed(() => settings.value.nonTranslatableKeys);
 
   return (
     <div className="max-h-[calc(100vh-180px)] overflow-auto">
@@ -84,6 +85,54 @@ export default function SettingsPanel() {
             </div>
           </div>
         )}
+
+        {/* Locked Translations Section */}
+        <div className="mt-8 pt-6 border-t border-slate-600">
+          <h4 className="font-medium mb-3">Locked Translations</h4>
+          <p className="text-sm text-slate-400 mb-3">
+            Translation keys marked as "locked" will not show warnings for missing translations.
+            These are typically keys that don't need translation (e.g., proper nouns, technical terms).
+          </p>
+
+          <div className="p-3 bg-slate-700 rounded">
+            {nonTranslatableKeys.value.size === 0 ? (
+              <div className="text-slate-400 text-sm italic">No locked translation keys</div>
+            ) : (
+              <div className="space-y-2">
+                <div className="text-sm font-medium mb-2">
+                  Locked Keys ({nonTranslatableKeys.value.size}):
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {Array.from(nonTranslatableKeys.value).sort().map((key) => (
+                    <div
+                      key={key}
+                      className="flex items-center gap-1 px-2 py-1 bg-amber-900/30 border border-amber-700 rounded text-xs"
+                    >
+                      <span className="font-mono text-amber-300">{key}</span>
+                      <button
+                        onClick={() => removeNonTranslatableKey(key)}
+                        className="ml-1 text-amber-400 hover:text-red-400 transition-colors"
+                        title="Unlock this key"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 p-3 bg-slate-700 rounded text-sm">
+            <h5 className="font-medium mb-2">How to lock a translation key?</h5>
+            <ul className="text-slate-400 space-y-1 text-xs">
+              <li>• Go to the Translations tab</li>
+              <li>• Select the key you want to lock</li>
+              <li>• Click the "Lock" button in the editor panel</li>
+              <li>• Locked keys won't trigger missing translation warnings</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   );

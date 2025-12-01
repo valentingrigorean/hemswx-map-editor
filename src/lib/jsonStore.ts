@@ -3,8 +3,7 @@ import { MapLayersData, LayerEntry, MapFeature } from './types';
 import { getDefaultData } from './utils';
 import { recomputeStats, summarizeData } from './parse';
 import { syncTranslations, pruneTranslations } from './intl';
-import { pruneUnusedLayers, deleteLayer } from './layers';
-
+import { pruneUnusedLayers } from './layers';
 
 // Core data signals
 export const jsonData = signal<MapLayersData>(getDefaultData());
@@ -25,9 +24,16 @@ export const featureDrafts = signal<{
 }>({ weatherFeatures: {}, features: {} });
 
 // UI state signals
-export const activeTab = signal<'features' | 'layers' | 'tools' | 'internationalization' | 'stats'>('features');
+export const activeTab = signal<'workspace' | 'internationalization' | 'json' | 'settings'>('workspace');
 export const activeRightTab = signal<'json' | 'feature' | 'layer'>('json');
 export const activeIntlLang = signal<'en' | 'da' | 'nb' | 'sv'>('en');
+export const selectedTranslationKey = signal<string | null>(null);
+
+// Navigate to translation panel with a specific key selected
+export const navigateToTranslation = (key: string) => {
+  selectedTranslationKey.value = key;
+  activeTab.value = 'internationalization';
+};
 
 
 // Computed values
@@ -46,7 +52,7 @@ export const selectedFeatureData = computed(() => {
 export const selectedLayerData = computed(() => {
   const selection = selectedLayer.value;
   if (selection.index < 0) return null;
-  
+
   return jsonData.value.layers[selection.index] || null;
 });
 
@@ -54,14 +60,14 @@ export const selectedLayerData = computed(() => {
 export const updateJsonData = (newData: MapLayersData) => {
   jsonData.value = newData;
   hasJson.value = true;
-  
+
   // Save to localStorage
   try {
     localStorage.setItem('hemswx-last-json-data', JSON.stringify(newData));
   } catch (error) {
     console.warn('Failed to save JSON data to localStorage:', error);
   }
-  
+
   // Clear selections if they're out of bounds
   const selection = selectedFeature.value;
   if (selection.type && selection.index >= 0) {
@@ -70,7 +76,7 @@ export const updateJsonData = (newData: MapLayersData) => {
       selectedFeature.value = { type: null, index: -1 };
     }
   }
-  
+
   const layerSelection = selectedLayer.value;
   if (layerSelection.index >= 0 && layerSelection.index >= newData.layers.length) {
     selectedLayer.value = { index: -1 };
@@ -94,7 +100,7 @@ export const loadLastJsonData = () => {
   return false;
 };
 
-export const setStatus = (message: string) => {
+export const setStatus = (_message: string) => {
 };
 
 export const selectFeature = (type: 'weatherFeatures' | 'features', index: number) => {
@@ -261,7 +267,7 @@ export const deleteLayerByIndex = (index: number) => {
   const updated = { ...jsonData.value };
   updated.layers = updated.layers.filter((_, i) => i !== index);
   updateJsonData(updated);
-  
+
   // Clear selection if deleted layer was selected
   const selection = selectedLayer.value;
   if (selection.index === index) {
@@ -269,6 +275,21 @@ export const deleteLayerByIndex = (index: number) => {
   } else if (selection.index > index) {
     selectedLayer.value = { index: selection.index - 1 };
   }
-  
+
   setStatus('✅ Layer deleted');
+};
+
+export const updateLayerById = (layerId: string, changes: Partial<LayerEntry>) => {
+  const updated = { ...jsonData.value };
+  const index = updated.layers.findIndex(l => l.id === layerId);
+  if (index === -1) return;
+
+  updated.layers = updated.layers.map((l, i) =>
+    i === index ? { ...l, ...changes } : l
+  );
+  updateJsonData(updated);
+};
+
+export const getLayerById = (layerId: string): LayerEntry | undefined => {
+  return jsonData.value.layers.find(l => l.id === layerId);
 };

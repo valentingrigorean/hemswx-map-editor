@@ -143,19 +143,81 @@ export const extractMapLayersData = (data: any): MapLayersData => {
   // Check if data has map_layers wrapper (server response format)
   if (data.map_layers && typeof data.map_layers === 'object') {
     const mapLayers = data.map_layers;
-    return {
+    return sanitizeMapLayersData({
       weatherFeatures: mapLayers.weatherFeatures || [],
       features: mapLayers.features || [],
       layers: mapLayers.layers || [],
       intl: mapLayers.intl || { en: {}, da: {}, nb: {}, sv: {} }
-    };
+    });
   }
 
   // Direct format - ensure required fields exist
-  return {
+  return sanitizeMapLayersData({
     weatherFeatures: data.weatherFeatures || [],
     features: data.features || [],
     layers: data.layers || [],
+    intl: data.intl || { en: {}, da: {}, nb: {}, sv: {} }
+  });
+};
+
+const VALID_ITEM_KEYS = new Set(['id', 'name', 'showLegend', 'legendUrl', 'legendDescription', 'layersIds']);
+const VALID_FEATURE_KEYS = new Set(['id', 'name', 'presentation', 'mutuallyExclusive', 'items']);
+const VALID_LAYER_ENTRY_KEYS = new Set(['id', 'layers', 'category', 'copyright', 'country']);
+const VALID_SUBLAYER_KEYS = new Set(['type', 'source', 'zIndex', 'refreshInterval', 'options']);
+
+function sanitizeItem(item: any): any {
+  const clean: any = {};
+  for (const key of Object.keys(item)) {
+    if (VALID_ITEM_KEYS.has(key)) {
+      clean[key] = item[key];
+    }
+  }
+  return clean;
+}
+
+function sanitizeFeature(feature: any): any {
+  const clean: any = {};
+  for (const key of Object.keys(feature)) {
+    if (VALID_FEATURE_KEYS.has(key)) {
+      if (key === 'items' && Array.isArray(feature.items)) {
+        clean.items = feature.items.map(sanitizeItem);
+      } else {
+        clean[key] = feature[key];
+      }
+    }
+  }
+  return clean;
+}
+
+function sanitizeSublayer(sublayer: any): any {
+  const clean: any = {};
+  for (const key of Object.keys(sublayer)) {
+    if (VALID_SUBLAYER_KEYS.has(key)) {
+      clean[key] = sublayer[key];
+    }
+  }
+  return clean;
+}
+
+function sanitizeLayerEntry(layer: any): any {
+  const clean: any = {};
+  for (const key of Object.keys(layer)) {
+    if (VALID_LAYER_ENTRY_KEYS.has(key)) {
+      if (key === 'layers' && Array.isArray(layer.layers)) {
+        clean.layers = layer.layers.map(sanitizeSublayer);
+      } else {
+        clean[key] = layer[key];
+      }
+    }
+  }
+  return clean;
+}
+
+export const sanitizeMapLayersData = (data: MapLayersData): MapLayersData => {
+  return {
+    weatherFeatures: (data.weatherFeatures || []).map(sanitizeFeature),
+    features: (data.features || []).map(sanitizeFeature),
+    layers: (data.layers || []).map(sanitizeLayerEntry),
     intl: data.intl || { en: {}, da: {}, nb: {}, sv: {} }
   };
 };

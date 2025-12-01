@@ -33,6 +33,9 @@ export interface LayerConfig {
 export interface LayerEntry {
   id: string;
   layers: LayerConfig[];
+  category?: string;
+  copyright?: string;
+  country?: string[];
 }
 
 export interface IntlDict {
@@ -81,7 +84,7 @@ export interface AppState {
     index: number;
   };
   ui: {
-    activeTab: 'features' | 'layers' | 'tools' | 'internationalization' | 'stats';
+    activeTab: 'workspace' | 'internationalization' | 'json' | 'settings';
     activeRightTab: 'json' | 'feature' | 'layer';
     activeIntlLang: 'en' | 'da' | 'nb' | 'sv';
     status: string;
