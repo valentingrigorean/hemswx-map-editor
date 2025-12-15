@@ -88,26 +88,22 @@ function LayerAssignment({
 interface FeatureEditorProps {
   feature: MapFeature;
   featureType: 'weatherFeatures' | 'features';
-  isNew: boolean;
   selectedItemIndex?: number;
   onUpdate: (changes: Partial<MapFeature>) => void;
   onUpdateItem: (index: number, changes: Partial<MapLayerItem>) => void;
   onRemoveItem: (index: number, item: MapLayerItem) => void;
   onSelectItem: (index: number | undefined) => void;
-  onFeatureTypeChange?: (type: 'weatherFeatures' | 'features') => void;
   onOpenLayerCreator: (itemIndex: number) => void;
 }
 
 export default function FeatureEditor({
   feature,
   featureType,
-  isNew,
   selectedItemIndex,
   onUpdate,
   onUpdateItem,
   onRemoveItem,
   onSelectItem,
-  onFeatureTypeChange,
   onOpenLayerCreator
 }: FeatureEditorProps) {
   const layers = useComputed(() => jsonData.value.layers || []);
@@ -298,7 +294,6 @@ export default function FeatureEditor({
       <ConfigHeader
         title={feature.name || feature.id || 'Feature'}
         id={feature.id}
-        isNew={isNew}
       />
 
       <ValidationDisplay validation={validation.value} className="mb-4" />
@@ -312,35 +307,6 @@ export default function FeatureEditor({
         activeTab={activeTab}
         onChange={(id) => setActiveTab(id as any)}
       />
-
-      {/* Feature Type Selector (only for new) */}
-      {isNew && onFeatureTypeChange && (
-        <div className="form-group mb-4">
-          <label className="form-label">Feature Type</label>
-          <div className="flex gap-2">
-            <button
-              className={`flex-1 px-3 py-2 rounded text-sm ${
-                featureType === 'weatherFeatures'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-              onClick={() => onFeatureTypeChange('weatherFeatures')}
-            >
-              Weather Feature
-            </button>
-            <button
-              className={`flex-1 px-3 py-2 rounded text-sm ${
-                featureType === 'features'
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-              onClick={() => onFeatureTypeChange('features')}
-            >
-              General Feature
-            </button>
-          </div>
-        </div>
-      )}
 
       {activeTab === 'general' && (
         <div className="space-y-4">

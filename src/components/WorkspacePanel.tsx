@@ -16,6 +16,7 @@ import Navigator from './workspace/Navigator';
 import FeatureEditor from './workspace/FeatureEditor';
 import LayerEditor from './workspace/LayerEditor';
 import QuickLayerModal from './workspace/QuickLayerModal';
+import FeatureCreatorModal from './workspace/FeatureCreatorModal';
 import MapPreviewPanel from './workspace/MapPreviewPanel';
 import ConfirmDialog, { useConfirmDialog } from './ui/ConfirmDialog';
 import Editor from '@monaco-editor/react';
@@ -96,6 +97,7 @@ export default function WorkspacePanel() {
   const featureDraft = useSignal<{ feature: MapFeature; featureType: 'weatherFeatures' | 'features' } | null>(null);
   const layerDraft = useSignal<LayerEntry | null>(null);
   const layerCreatorItemIndex = useSignal<number | null>(null);
+  const featureCreatorOpen = useSignal<'weatherFeatures' | 'features' | null>(null);
   const navWidth = useSignal(getStoredNavWidth());
   const isResizing = useSignal(false);
   const previewWidth = useSignal(getStoredPreviewWidth());
@@ -278,18 +280,25 @@ export default function WorkspacePanel() {
 
   // New handlers
   const handleNewFeature = (featureType: 'weatherFeatures' | 'features') => {
+    featureCreatorOpen.value = featureType;
+  };
+
+  const handleFeatureCreated = (feature: MapFeature, featureType: 'weatherFeatures' | 'features') => {
+    const syncedData = autoSyncFeatureTranslations(jsonData.value, feature);
+    const updated = JSON.parse(JSON.stringify(syncedData));
+    updated[featureType].push(feature);
+    updateJsonData(updated);
+
+    const newIndex = updated[featureType].length - 1;
+    treeSelection.value = { type: 'feature', featureType, index: newIndex };
     mode.value = 'feature';
-    isNewItem.value = true;
-    selectedSublayerIndex.value = undefined;
+    isNewItem.value = false;
     featureDraft.value = {
-      feature: {
-        presentation: 'single',
-        items: [{ id: '', name: '', showLegend: false, layersIds: [] }]
-      },
+      feature: JSON.parse(JSON.stringify(feature)),
       featureType
     };
-    treeSelection.value = null;
-    layerDraft.value = null;
+    featureCreatorOpen.value = null;
+    setStatus('Feature created');
   };
 
   // Auto-save feature if valid (for existing items)
@@ -322,28 +331,6 @@ export default function WorkspacePanel() {
     updateJsonData(updated);
   };
 
-  // Create new feature (only for new items)
-  const handleCreateFeature = () => {
-    if (!featureDraft.value || !isNewItem.value) return;
-
-    const { feature, featureType } = featureDraft.value;
-    const validation = validateFeature(feature);
-
-    if (!validation.valid) {
-      setStatus(validation.errors[0] || 'Invalid feature');
-      return;
-    }
-
-    const syncedData = autoSyncFeatureTranslations(jsonData.value, feature);
-    const updated = JSON.parse(JSON.stringify(syncedData));
-    updated[featureType].push(feature);
-    updateJsonData(updated);
-
-    const newIndex = updated[featureType].length - 1;
-    treeSelection.value = { type: 'feature', featureType, index: newIndex };
-    isNewItem.value = false;
-    setStatus('Feature created');
-  };
 
   // Create new layer (only for new items)
   const handleCreateLayer = () => {
@@ -668,13 +655,12 @@ export default function WorkspacePanel() {
             <div>
               <h2 className="text-lg font-medium text-white">
                 {mode.value === 'none' ? 'Select an item' :
-                 isNewItem.value && mode.value === 'feature' ? 'New Feature' :
                  isNewItem.value && mode.value === 'layer' ? 'New Layer' :
                  mode.value === 'feature' ? getFeatureDisplayName(featureDraft.value!.feature) :
                  mode.value === 'layer' ? layerDraft.value!.id || 'Layer' :
                  'Select an item'}
               </h2>
-              {mode.value === 'feature' && featureDraft.value && !isNewItem.value && (
+              {mode.value === 'feature' && featureDraft.value && (
                 <div className="text-xs text-slate-400 mt-0.5">
                   {featureDraft.value.featureType === 'weatherFeatures' ? 'Weather Feature' : 'General Feature'} • {featureDraft.value.feature.presentation}
                 </div>
@@ -742,19 +728,8 @@ export default function WorkspacePanel() {
           </div>
 
           <div className="flex gap-2">
-            {mode.value === 'feature' && (
-              <>
-                {isNewItem.value ? (
-                  <>
-                    <button className="btn success small" onClick={handleCreateFeature}>Create</button>
-                    <button className="btn ghost small" onClick={handleCancel}>Cancel</button>
-                  </>
-                ) : (
-                  <>
-                    <button className="btn danger small" onClick={handleDelete}>Delete</button>
-                  </>
-                )}
-              </>
+            {mode.value === 'feature' && featureDraft.value && (
+              <button className="btn danger small" onClick={handleDelete}>Delete</button>
             )}
             {mode.value === 'layer' && (
               <>
@@ -799,7 +774,6 @@ export default function WorkspacePanel() {
                 <FeatureEditor
                   feature={featureDraft.value.feature}
                   featureType={featureDraft.value.featureType}
-                  isNew={isNewItem.value}
                   selectedItemIndex={treeSelection.value?.type === 'feature' ? treeSelection.value.itemIndex : undefined}
                   onUpdate={updateFeatureDraft}
                   onUpdateItem={updateFeatureItem}
@@ -809,9 +783,6 @@ export default function WorkspacePanel() {
                       treeSelection.value = { ...treeSelection.value, itemIndex };
                     }
                   }}
-                  onFeatureTypeChange={isNewItem.value ? (type) => {
-                    featureDraft.value = { ...featureDraft.value!, featureType: type };
-                  } : undefined}
                   onOpenLayerCreator={(itemIndex) => layerCreatorItemIndex.value = itemIndex}
                 />
               )}
@@ -955,6 +926,14 @@ export default function WorkspacePanel() {
         isOpen={layerCreatorItemIndex.value !== null}
         onClose={() => layerCreatorItemIndex.value = null}
         onCreateLayer={handleQuickCreateLayer}
+      />
+
+      {/* Feature Creator Modal */}
+      <FeatureCreatorModal
+        isOpen={featureCreatorOpen.value !== null}
+        initialFeatureType={featureCreatorOpen.value || 'weatherFeatures'}
+        onClose={() => featureCreatorOpen.value = null}
+        onCreate={handleFeatureCreated}
       />
 
       {/* Delete Item Confirmation Modal */}

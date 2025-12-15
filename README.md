@@ -1,29 +1,33 @@
 # HemsWX Map Layers JSON Editor
 
-A modern browser-based tool for creating and editing map layer configurations for aviation weather services. Built with Preact, TypeScript, and Vite for optimal performance and developer experience.
+A modern browser-based tool for creating and editing map layer configurations for aviation weather services. Built with Preact, TypeScript, and Vite, featuring integrated ArcGIS map preview and Monaco Editor for an optimal editing experience.
 
-## 🚀 Live Demo
+## Live Demo
 
 **[Open Map Layers Editor](https://valentingrigorean.github.io/hemswx-map-editor/)**
 
-## ✨ Features
+## Features
 
 ### Core Functionality
 - **Drag & Drop JSON Loading** - Drop JSON files directly into the editor
-- **Live JSON Editing** - Real-time validation and formatting
-- **Multi-step Feature Wizard** - Guided creation of weather/general features
-- **Layer Management** - Create, edit, and wire ArcGIS layers (WMS, Tiled, MapImage, PortalItem)
+- **Monaco Editor Integration** - Full-featured code editor with syntax highlighting and validation
+- **Live Map Preview** - Real-time ArcGIS map visualization of configured layers
+- **Workspace-based Interface** - Unified workspace with navigator, editors, and map preview
+- **Layer Management** - Create, edit, and configure ArcGIS layers (WMS, Tiled, VectorTiled, Feature, MapImage, PortalItem)
 - **Internationalization Support** - 4-language translation management (en, da, nb, sv)
 - **Validation & Stats** - Real-time detection of missing/unused layers and translations
 
 ### Advanced Features
-- **Split-pane Interface** - Efficient workflow with features panel and JSON editor
-- **Layer Association System** - Visual grid for linking items to multiple layers
-- **Translation Sync/Prune** - Automatic translation key management
+- **ArcGIS SDK Integration** - Full ArcGIS Maps SDK for JavaScript support
+- **Basemaps Management** - Configure and preview different basemap options
+- **WMS Capabilities Parsing** - Auto-discover available WMS layers from service endpoints
+- **Layer Visibility Control** - Toggle layer visibility in map preview
+- **Legend Panel** - View layer legends in the map preview
+- **Settings Panel** - Configure ArcGIS credentials and editor preferences
+- **Session Persistence** - Auto-save and restore last editing session
 - **JSON Download** - Export configurations with timestamps
-- **Dark Theme** - Professional dark UI optimized for long editing sessions
 
-## 📋 JSON Structure
+## JSON Structure
 
 The editor manages complex JSON configurations with four main sections:
 
@@ -33,7 +37,7 @@ Aviation-specific weather layers:
 {
   "id": "wind_temperature",
   "name": "Wind and temperature (60 min)",
-  "presentation": "multiple", 
+  "presentation": "multiple",
   "mutuallyExclusive": true,
   "items": [
     {
@@ -69,8 +73,10 @@ ArcGIS service configurations:
   "id": "wind_temp_fl025",
   "type": "wms",
   "source": "https://api.met.no/weatherapi/gisforecast/1.0/",
-  "layerNames": "wind_temperature_fl025",
-  "opacity": 0.8,
+  "options": {
+    "layerNames": ["wind_temperature_fl025"],
+    "opacity": 0.8
+  },
   "zIndex": 10
 }
 ```
@@ -88,12 +94,11 @@ Multi-language support:
 }
 ```
 
-## 🛠 Development Setup
+## Development Setup
 
 ### Prerequisites
-- Node.js 16+ and npm
+- Node.js 18+ and npm
 - Modern browser with ES2020 support
-- Git
 
 ### Installation
 ```bash
@@ -108,7 +113,7 @@ npm install
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+The application will be available at `http://localhost:5173`
 
 ### Available Scripts
 ```bash
@@ -118,57 +123,104 @@ npm run preview  # Preview production build locally
 npm run deploy   # Build and deploy to GitHub Pages
 ```
 
-## 🏗 Architecture
+## Architecture
 
 ### Technology Stack
 - **Frontend**: Preact 10 + TypeScript
 - **Build Tool**: Vite 5
 - **State Management**: Preact Signals (reactive)
-- **Styling**: CSS3 with custom properties (dark theme)
+- **Code Editor**: Monaco Editor
+- **Maps**: ArcGIS Maps SDK for JavaScript
+- **UI Components**: Calcite Components + Tailwind CSS
 - **Deployment**: GitHub Pages (static)
 
 ### Project Structure
 ```
 src/
-├── components/           # Preact components
-│   ├── wizard/          # Multi-step feature creation wizard
-│   ├── App.tsx          # Main application layout
-│   ├── Editor.tsx       # JSON textarea with validation
-│   ├── Toolbar.tsx      # File operations and actions
-│   ├── GroupsPanel.tsx  # Feature browser and management
-│   ├── LayerBuilder.tsx # Layer creation/editing interface
-│   └── StatusBar.tsx    # Status messages and validation
-├── lib/                 # Core utilities and logic
-│   ├── types.ts         # TypeScript type definitions
-│   ├── jsonStore.ts     # Global state with Preact signals
-│   ├── utils.ts         # Helper functions
-│   ├── parse.ts         # JSON validation and formatting
-│   ├── intl.ts          # Translation management
-│   └── layers.ts        # Layer operations and validation
-├── styles/              # CSS stylesheets
-│   ├── globals.css      # Global styles and theme
-│   ├── components.css   # Component-specific styles
-│   └── wizard.css       # Wizard modal styles
-└── main.tsx            # Application entry point
+├── components/               # Preact components
+│   ├── ui/                  # Reusable UI components
+│   │   ├── CollapsibleSection.tsx
+│   │   ├── ConfigHeader.tsx
+│   │   ├── ConfirmDialog.tsx
+│   │   ├── SmartLayerSelect.tsx
+│   │   ├── Tabs.tsx
+│   │   ├── TranslationForm.tsx
+│   │   └── TreeItem.tsx
+│   ├── workspace/           # Workspace components
+│   │   ├── map-preview/     # Map preview components
+│   │   │   ├── MapPreviewPanel.tsx
+│   │   │   ├── LayerVisibilityPanel.tsx
+│   │   │   ├── LegendPanel.tsx
+│   │   │   ├── useMapLayers.ts
+│   │   │   └── useBasemap.ts
+│   │   ├── ui/             # Workspace-specific UI
+│   │   │   └── LayerConfigEditor.tsx
+│   │   ├── FeatureEditor.tsx
+│   │   ├── LayerEditor.tsx
+│   │   ├── LayerEditorModal.tsx
+│   │   ├── LayerPicker.tsx
+│   │   ├── MapLayerModal.tsx
+│   │   ├── MapPreviewPanel.tsx
+│   │   ├── Navigator.tsx
+│   │   └── QuickLayerModal.tsx
+│   ├── settings/            # Settings components
+│   │   └── ArcGISSettingsSection.tsx
+│   ├── App.tsx              # Main application layout
+│   ├── BaseMapsPanel.tsx    # Basemap management
+│   ├── EmptyState.tsx       # Empty state display
+│   ├── JsonEditor.tsx       # Monaco JSON editor wrapper
+│   ├── SettingsPanel.tsx    # Settings panel
+│   ├── Sidebar.tsx          # Navigation sidebar
+│   ├── ValidationDisplay.tsx # Validation messages
+│   └── WorkspacePanel.tsx   # Main workspace container
+├── lib/                     # Core utilities and logic
+│   ├── arcgis/             # ArcGIS utilities
+│   │   ├── index.ts
+│   │   └── wmsCapabilities.ts
+│   ├── credentials.ts       # ArcGIS credentials management
+│   ├── intl.ts             # Translation management
+│   ├── jsonStore.ts        # Global state with Preact signals
+│   ├── layers.ts           # Layer operations and validation
+│   ├── parse.ts            # JSON validation and formatting
+│   ├── settings.ts         # Application settings
+│   ├── types.ts            # TypeScript type definitions
+│   ├── utils.ts            # Helper functions
+│   └── validation.ts       # Entity validation
+├── styles/
+│   └── globals.css         # Global styles and Tailwind
+└── main.tsx               # Application entry point
 
 public/
-├── index.html          # HTML template
-├── map-layers.json     # Sample data file
-└── favicon.svg         # Application icon
+├── map-layers.json        # Sample data file
+└── favicon.svg           # Application icon
 ```
 
-### Key Design Decisions
-1. **Preact Signals** - Chosen for reactive state management without external dependencies
-2. **TypeScript** - Ensures type safety for complex JSON structures
-3. **CSS Custom Properties** - Enables consistent theming and easy customization
-4. **Modular Architecture** - Separates concerns for maintainability and testing
-5. **Static Deployment** - No server required, deployable to any static host
+### Key Components
 
-## 🚀 Deployment
+| Component | Description |
+|-----------|-------------|
+| `WorkspacePanel` | Main container with Navigator, editors, and map preview |
+| `Navigator` | Tree-based feature/layer browser |
+| `FeatureEditor` | Weather and general feature editing |
+| `LayerEditor` | Layer configuration with type-specific options |
+| `MapPreviewPanel` | ArcGIS map with layer visualization |
+| `JsonEditor` | Monaco-based JSON editing |
+| `BaseMapsPanel` | Basemap configuration |
+| `SettingsPanel` | ArcGIS credentials and app settings |
+
+### Supported Layer Types
+
+The editor supports 6 ArcGIS layer types (matching Dart `LayerType` enum):
+- **wms** - Web Map Service layers (requires layerNames array)
+- **tiled** - Cached tile services
+- **vectorTiled** - Vector tile services
+- **feature** - Feature layer services
+- **mapImage** - Dynamic map services
+- **portalItem** - ArcGIS Online portal items (requires layerId)
+
+## Deployment
 
 ### Quick Deploy to GitHub Pages
-
-The easiest way to deploy is using the built-in deploy script:
 
 ```bash
 # Build and deploy in one command
@@ -195,68 +247,6 @@ If this is your first deployment:
    npm run deploy
    ```
 
-3. **Your site will be live** at the URL shown in repository Settings → Pages
-
-### Configuration Notes
-
-- ✅ **Base path**: Already configured as `/hemswx-map-editor/` in `vite.config.ts`
-- ✅ **Deploy script**: Already set up in `package.json`
-- ✅ **gh-pages package**: Already installed and ready to use
-
-### Deployment Checklist
-
-Before deploying:
-- [ ] Test the build locally: `npm run build && npm run preview`
-- [ ] Commit and push your changes to main branch
-- [ ] Run `npm run deploy`
-- [ ] Check the live site after 1-2 minutes
-
-### Alternative: GitHub Actions (Auto-deploy)
-
-For automatic deployment on every push to main, create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
-      - uses: actions/upload-pages-artifact@v2
-        with:
-          path: ./dist
-      - uses: actions/deploy-pages@v2
-```
-
-### Troubleshooting
-
-**404 errors on refresh?**
-- This is normal for SPAs on GitHub Pages
-- The app handles client-side routing correctly
-
-**Build fails?**
-- Check that all dependencies are installed: `npm install`
-- Ensure TypeScript compilation passes: `npm run build`
-
-**Wrong base path?**
-- Update `base: '/your-repo-name/'` in `vite.config.ts`
-- Must match your GitHub repository name exactly
-
 ### Other Static Hosts
 The built application (`/dist` folder) can be deployed to:
 - **Netlify** - Drag & drop the `/dist` folder
@@ -264,71 +254,39 @@ The built application (`/dist` folder) can be deployed to:
 - **AWS S3** - Upload `/dist` contents to S3 bucket
 - **Any Static Host** - Upload `/dist` contents via FTP/SFTP
 
-## 🔧 Customization
-
-### Theming
-Modify CSS custom properties in `src/styles/globals.css`:
-```css
-:root {
-  --bg: #0f1115;        /* Background color */
-  --panel: #171923;     /* Panel background */
-  --accent: #5b9cff;    /* Primary accent color */
-  --text: #e6e8ee;      /* Text color */
-  /* ... other properties */
-}
-```
-
-### Adding Layer Types
-Extend layer support in `src/lib/layers.ts`:
-```typescript
-export const LAYER_TYPES = ['wms', 'tiled', 'mapImage', 'portalItem', 'newType'] as const;
-
-export const getDefaultLayerConfig = (type: LayerType, id: string): LayerConfig => {
-  // Add configuration for new layer type
-  switch (type) {
-    case 'newType':
-      return { /* default config */ };
-    // ... existing cases
-  }
-};
-```
-
-### Language Support
-Add new languages in `src/lib/intl.ts`:
-```typescript
-export const SUPPORTED_LANGUAGES = ['en', 'da', 'nb', 'sv', 'de'] as const;
-```
-
-## 📖 Usage Guide
+## Usage Guide
 
 ### Basic Workflow
 1. **Load Data** - Drop JSON file or click "Open JSON..."
-2. **Browse Features** - View existing weather/general features
-3. **Create Features** - Use wizard to add new features step-by-step
-4. **Manage Layers** - Create layer definitions and wire to items
-5. **Validate** - Check for missing translations and unused layers
-6. **Download** - Export updated JSON configuration
+2. **Browse Features** - Use the Navigator to view weather/general features
+3. **Edit Features** - Click on features to edit in the Feature Editor
+4. **Manage Layers** - Create and configure layer definitions
+5. **Preview Map** - View layers on the integrated map preview
+6. **Validate** - Check for missing translations and unused layers
+7. **Download** - Export updated JSON configuration
 
-### Creating Features
-1. Click "🧙‍♂️ Create Feature" button
-2. **Step 1**: Choose Weather or General feature type
-3. **Step 2**: Configure presentation style and properties
-4. **Step 3**: Add items with names and legend settings
-5. **Step 4**: Associate items with layers using checkboxes
-6. **Step 5**: Review and save the complete feature
+### Map Preview
+The integrated ArcGIS map preview allows you to:
+- Visualize configured layers in real-time
+- Toggle individual layer visibility
+- View layer legends
+- Switch between different basemaps
+- Test layer configurations before exporting
 
 ### Layer Management
-- **Create Layers**: Use the Layers tab to define ArcGIS services
-- **Layer Types**: Support for WMS, Tiled, MapImage, and PortalItem
+- **Create Layers**: Use the Layer Editor to define ArcGIS services
+- **Layer Types**: Support for WMS, Tiled, VectorTiled, Feature, MapImage, and PortalItem
+- **WMS Discovery**: Auto-discover available layers from WMS endpoints
 - **Validation**: Real-time checking for missing layer references
-- **Usage Tracking**: Visual indicators for used/unused layers
+- **Custom Options**: Key/value editor for additional layer properties
 
 ### Translation Management
-- **Auto-sync**: Click "Fix Missing Translations" to add missing keys
-- **Language Tabs**: Switch between en/da/nb/sv to view status
-- **Cleanup**: Use "Remove Unused" to prune old translation keys
+- **Auto-sync**: Translation keys are created from feature/item names
+- **Language Tabs**: Switch between en/da/nb/sv to view and edit
+- **Missing Detection**: Shows untranslated keys per language
+- **Fallback System**: Missing translations fall back to English
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -338,18 +296,17 @@ export const SUPPORTED_LANGUAGES = ['en', 'da', 'nb', 'sv', 'de'] as const;
 
 ### Development Guidelines
 - Follow TypeScript best practices
-- Maintain test coverage for utilities
 - Use Preact signals for state management
 - Keep components focused and reusable
 - Follow the existing code style
+- Add comments only when they explain "why", not "what"
 
-## 📝 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
-- Original single-file editor concept and requirements
 - HemsWX aviation weather service integration
-- Preact and Vite communities for excellent tooling
-- Contributors and testers
+- Esri ArcGIS Maps SDK for JavaScript
+- Preact, Vite, and Monaco Editor communities
