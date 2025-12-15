@@ -1,5 +1,6 @@
 import { useSignal } from '@preact/signals';
-import { LayerConfig, LayerEntry } from '../../lib/types';
+import { useEffect } from 'preact/hooks';
+import { LayerConfig, LayerEntry, LayerType, LayerSourceKind } from '../../lib/types';
 import { getDefaultLayerConfig } from '../../lib/layers';
 import { LAYER_TEMPLATES } from './LayerEditor';
 
@@ -16,6 +17,13 @@ export default function QuickLayerModal({
 }: QuickLayerModalProps) {
   const layerId = useSignal('');
   const sublayer = useSignal<LayerConfig>(getDefaultLayerConfig('wms'));
+
+  useEffect(() => {
+    if (isOpen) {
+      layerId.value = '';
+      sublayer.value = getDefaultLayerConfig('wms');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -52,11 +60,12 @@ export default function QuickLayerModal({
   };
 
   const current = sublayer.value;
+  const isPortalSource = current.type === 'portalItem' || current.sourceKind === 'portalItem';
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={handleClose}>
       <div
-        className="bg-slate-800 border border-slate-600 rounded-xl w-[550px] max-w-[95vw] max-h-[90vh] flex flex-col shadow-2xl"
+        className="bg-slate-800 border border-slate-600 rounded-xl w-[600px] max-w-[95vw] min-h-[400px] max-h-[85vh] flex flex-col shadow-2xl"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -87,10 +96,10 @@ export default function QuickLayerModal({
             />
           </div>
 
-          {/* Layer Type */}
+          {/* Layer Type - 4 column grid like MapLayerModal */}
           <div className="form-group">
             <label className="form-label">Layer Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {LAYER_TEMPLATES.map(tmpl => (
                 <button
                   key={tmpl.id}
@@ -105,6 +114,7 @@ export default function QuickLayerModal({
                     sublayer.value = {
                       ...defaults,
                       source: current.source,
+                      sourceKind: tmpl.type === 'portalItem' ? 'portalItem' : current.sourceKind,
                       zIndex: current.zIndex,
                       refreshInterval: current.refreshInterval,
                       options: {
@@ -121,21 +131,48 @@ export default function QuickLayerModal({
             </div>
           </div>
 
-          {/* Source URL */}
+          {/* Source Kind - for types that support both */}
+          {current.type !== 'portalItem' && (
+            <div className="form-group">
+              <label className="form-label">Source Kind</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 rounded text-sm ${
+                    current.sourceKind !== 'portalItem'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                  onClick={() => updateSublayer({ sourceKind: 'uri' })}
+                >
+                  URI (URL)
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-1.5 rounded text-sm ${
+                    current.sourceKind === 'portalItem'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  }`}
+                  onClick={() => updateSublayer({ sourceKind: 'portalItem' })}
+                >
+                  Portal Item ID
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Source URL/ID */}
           <div className="form-group">
             <label className="form-label">
-              Source URL/ID <span className="text-red-400">*</span>
+              {isPortalSource ? 'Portal Item ID' : 'Source URL'} <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
               className="form-input"
               value={current.source || ''}
               onInput={(e) => updateSublayer({ source: (e.target as HTMLInputElement).value })}
-              placeholder={
-                current.type === 'portalItem' ? 'Portal Item ID (e.g. abc123)' :
-                current.type === 'wms' ? 'https://example.com/wms' :
-                'https://example.com/arcgis/rest/services/...'
-              }
+              placeholder={isPortalSource ? 'e.g. 2e258ef465334b509134c6aec567a410' : 'https://...'}
             />
           </div>
 
@@ -201,10 +238,10 @@ export default function QuickLayerModal({
             </div>
           )}
 
-          {/* Row: Opacity, Z-Index, Refresh */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Opacity */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="form-group">
-              <label className="form-label text-xs">Opacity</label>
+              <label className="form-label text-xs">Opacity (0-1)</label>
               <input
                 type="number"
                 className="form-input text-sm"
@@ -225,19 +262,6 @@ export default function QuickLayerModal({
                 className="form-input text-sm"
                 value={current.zIndex || 0}
                 onInput={(e) => updateSublayer({ zIndex: parseInt((e.target as HTMLInputElement).value) || 0 })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label text-xs">Refresh (ms)</label>
-              <input
-                type="number"
-                className="form-input text-sm"
-                value={current.refreshInterval || ''}
-                onInput={(e) => {
-                  const val = (e.target as HTMLInputElement).value;
-                  updateSublayer({ refreshInterval: val ? parseInt(val) : undefined });
-                }}
-                placeholder="60000"
               />
             </div>
           </div>

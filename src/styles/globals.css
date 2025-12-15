@@ -523,3 +523,86 @@ code.inline {
     @apply flex-wrap gap-2;
   }
 }
+
+/* Calcite Design System - Dark theme overrides */
+[data-calcite-mode="dark"],
+calcite-panel,
+calcite-dropdown,
+calcite-list,
+calcite-card {
+  --calcite-color-brand: #5b9cff;
+  --calcite-color-brand-hover: #4589f0;
+  --calcite-color-brand-press: #3578df;
+  --calcite-color-background: #171923;
+  --calcite-color-foreground-1: #1e2230;
+  --calcite-color-foreground-2: #22273a;
+  --calcite-color-foreground-3: #2a3048;
+  --calcite-color-text-1: #e6e8ee;
+  --calcite-color-text-2: #b8bcc8;
+  --calcite-color-text-3: #9aa4b2;
+  --calcite-color-border-1: #3a4460;
+  --calcite-color-border-2: #22273a;
+  --calcite-color-border-3: #171923;
+}
+
+calcite-panel {
+  --calcite-panel-background-color: var(--calcite-color-background);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+}
+
+calcite-list-item {
+  --calcite-list-item-background-color: transparent;
+}
+
+calcite-list-item:hover {
+  --calcite-list-item-background-color: var(--calcite-color-foreground-2);
+}
+
+calcite-card {
+  --calcite-card-background-color: var(--calcite-color-foreground-1);
+}
+
+calcite-button[appearance="outline-fill"] {
+  --calcite-button-background-color: var(--calcite-color-foreground-2);
+}
+
+calcite-dropdown-item[selected] {
+  --calcite-color-foreground-current: var(--calcite-color-brand);
+}
+
+/* ArcGIS Map Components - Dark theme */
+arcgis-legend {
+  --calcite-color-background: rgba(23, 25, 35, 0.95);
+  --calcite-color-foreground-1: #1e2230;
+  --calcite-color-text-1: #e6e8ee;
+  --calcite-color-text-2: #b8bcc8;
+  --calcite-color-text-3: #9aa4b2;
+  --calcite-color-border-1: #3a4460;
+}
+
+arcgis-legend::part(container) {
+  background: rgba(23, 25, 35, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Ensure text is readable in legend */
+.esri-legend {
+  --esri-widget-background: rgba(23, 25, 35, 0.95) !important;
+  background: rgba(23, 25, 35, 0.95) !important;
+  color: #e6e8ee !important;
+}
+
+.esri-legend__layer-caption,
+.esri-legend__layer-cell--info,
+.esri-legend__service-label {
+  color: #e6e8ee !important;
+}
+
+.esri-widget {
+  --esri-widget-background: rgba(23, 25, 35, 0.95);
+  --esri-widget-color: #e6e8ee;
+  color: #e6e8ee;
+}

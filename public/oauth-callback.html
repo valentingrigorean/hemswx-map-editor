@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OAuth Callback</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        try {
+          var detail = window.location.hash || window.location.search || '';
+          var eventType = window.location.hash ? 'arcgis:auth:hash' : 'arcgis:auth:location:search';
+
+          if (window.opener && !window.opener.closed) {
+            window.opener.dispatchEvent(new CustomEvent(eventType, { detail: detail }));
+            window.close();
+            return;
+          }
+
+          if (window.parent && window.parent !== window) {
+            window.parent.dispatchEvent(new CustomEvent(eventType, { detail: detail }));
+            return;
+          }
+        } catch (e) {
+          // Ignore and keep page open for debugging
+        }
+      })();
+    </script>
+    <p>Completing sign-in… You can close this window.</p>
+  </body>
+</html>

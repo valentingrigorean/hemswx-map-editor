@@ -1,5 +1,5 @@
-import { MapLayersData, ValidationResult, StatsData } from './types';
-import { safeParse, collectItemIds, collectReferencedLayerIds } from './utils';
+import { MapLayersData, ValidationResult } from './types';
+import { safeParse, collectReferencedLayerIds } from './utils';
 import { settings } from './settings';
 
 export const validateJSON = (text: string): ValidationResult => {
@@ -105,7 +105,7 @@ export const validateJSON = (text: string): ValidationResult => {
   try {
     const usedLayerIds = collectReferencedLayerIds(parsed as MapLayersData);
     const definedLayerIds = new Set((parsed.layers || []).map((l: any) => l.id).filter(Boolean));
-    
+
     const missingLayers = [...usedLayerIds].filter(id => !definedLayerIds.has(id));
     if (missingLayers.length > 0) {
       warnings.push(`Missing layer definitions: ${missingLayers.join(', ')}`);
@@ -113,7 +113,74 @@ export const validateJSON = (text: string): ValidationResult => {
   } catch (e) {
     warnings.push('Could not validate layer references');
   }
-  
+
+  // Basemap validation (optional field)
+  if (parsed.baseMaps !== undefined) {
+    if (!Array.isArray(parsed.baseMaps)) {
+      errors.push("'baseMaps' must be an array if present");
+    } else {
+      const basemapIds = new Set<string>();
+      parsed.baseMaps.forEach((basemap: any, idx: number) => {
+        const prefix = `basemap ${idx + 1}`;
+
+        // Required: id field
+        if (!basemap.id || typeof basemap.id !== 'string' || basemap.id.trim() === '') {
+          errors.push(`${prefix}: id is required and cannot be empty`);
+        } else {
+          if (basemapIds.has(basemap.id)) {
+            errors.push(`${prefix}: duplicate id "${basemap.id}"`);
+          }
+          basemapIds.add(basemap.id);
+        }
+
+        // Required: name field
+        if (!basemap.name || typeof basemap.name !== 'string' || basemap.name.trim() === '') {
+          errors.push(`${prefix}: name is required and cannot be empty`);
+        }
+
+        // Required: baseLayers array
+        if (!basemap.baseLayers || !Array.isArray(basemap.baseLayers)) {
+          errors.push(`${prefix}: baseLayers is required and must be an array`);
+        } else {
+          basemap.baseLayers.forEach((layer: any, layerIdx: number) => {
+            validateMapLayerEntity(layer, `${prefix}, baseLayer ${layerIdx + 1}`, errors);
+          });
+        }
+
+        // Optional but must be array: referenceLayers
+        if (basemap.referenceLayers !== undefined && !Array.isArray(basemap.referenceLayers)) {
+          errors.push(`${prefix}: referenceLayers must be an array if present`);
+        } else if (Array.isArray(basemap.referenceLayers)) {
+          basemap.referenceLayers.forEach((layer: any, layerIdx: number) => {
+            validateMapLayerEntity(layer, `${prefix}, referenceLayer ${layerIdx + 1}`, errors);
+          });
+        }
+
+        // Optional: countries validation
+        if (basemap.countries !== undefined) {
+          if (!Array.isArray(basemap.countries)) {
+            errors.push(`${prefix}: countries must be an array if present`);
+          } else {
+            const validCountries = ['world', 'no', 'se', 'dk', 'fi'];
+            basemap.countries.forEach((c: any, cIdx: number) => {
+              if (!validCountries.includes(c)) {
+                warnings.push(`${prefix}: unknown country code "${c}" at index ${cIdx}`);
+              }
+            });
+          }
+        }
+
+        // Optional: unitType validation
+        if (basemap.unitType !== undefined) {
+          const validUnitTypes = ['metric', 'aviation', 'nautical'];
+          if (!validUnitTypes.includes(basemap.unitType)) {
+            warnings.push(`${prefix}: unknown unitType "${basemap.unitType}"`);
+          }
+        }
+      });
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,
@@ -121,55 +188,51 @@ export const validateJSON = (text: string): ValidationResult => {
   };
 };
 
+// Helper to validate a MapLayerEntity (used in basemaps)
+function validateMapLayerEntity(layer: any, prefix: string, errors: string[]) {
+  const validLayerTypes = ['wms', 'tiled', 'mapImage', 'portalItem', 'vectorTiled', 'feature', 'wmts', 'sceneLayer', 'unknown'];
+
+  if (!layer.type || typeof layer.type !== 'string') {
+    errors.push(`${prefix}: type is required`);
+  } else if (!validLayerTypes.includes(layer.type)) {
+    errors.push(`${prefix}: unknown type "${layer.type}"`);
+  }
+
+  if (!layer.source || typeof layer.source !== 'string' || layer.source.trim() === '') {
+    errors.push(`${prefix}: source is required and cannot be empty`);
+  }
+
+  if (layer.sourceKind !== undefined) {
+    const validSourceKinds = ['uri', 'portalItem'];
+    if (!validSourceKinds.includes(layer.sourceKind)) {
+      errors.push(`${prefix}: sourceKind must be "uri" or "portalItem"`);
+    }
+  }
+}
+
 export const formatJSON = (data: any): string => {
   return JSON.stringify(data, null, 2);
 };
 
-export const recomputeStats = (data: MapLayersData): StatsData => {
-  try {
-    const usedLayers = collectReferencedLayerIds(data);
-    const definedLayers = new Set((data.layers || []).map(x => x.id));
-    
-    // Also consider layers marked as "referenced" in settings as used
-    const referencedInSettings = settings.value.customLogicLayers;
-    const allUsedLayers = new Set([...usedLayers, ...referencedInSettings]);
-    
-    const missingLayers = [...usedLayers].filter(x => !definedLayers.has(x));
-    const unusedLayers = [...definedLayers].filter(x => !allUsedLayers.has(x));
-    
-    const keys = collectItemIds(data);
-    const langs = Object.keys(data.intl || {});
-    const missingIntl: { [lang: string]: string[] } = {};
-    
-    for (const lang of langs) {
-      const dict = data.intl[lang] || {};
-      missingIntl[lang] = [...keys].filter(k => !(k in dict));
-    }
-    
-    return {
-      missingLayers,
-      unusedLayers,
-      missingIntl,
-      weatherFeatureCount: data.weatherFeatures?.length || 0,
-      featureCount: data.features?.length || 0,
-      layerCount: data.layers?.length || 0,
-      languageCount: langs.length
-    };
-  } catch (e) {
-    console.warn('Error computing stats:', e);
-    return {
-      missingLayers: [],
-      unusedLayers: [],
-      missingIntl: {},
-      weatherFeatureCount: 0,
-      featureCount: 0,
-      layerCount: 0,
-      languageCount: 0
-    };
-  }
-};
-
 export const summarizeData = (data: MapLayersData): string => {
-  const stats = recomputeStats(data);
-  return `WF: ${stats.weatherFeatureCount} • F: ${stats.featureCount} • Layers: ${stats.layerCount} • Langs: ${stats.languageCount}`;
+  try {
+    const weatherFeatureCount = data.weatherFeatures?.length || 0;
+    const featureCount = data.features?.length || 0;
+    const layerCount = data.layers?.length || 0;
+    const basemapCount = data.baseMaps?.length || 0;
+    const languageCount = Object.keys(data.intl || {}).length;
+
+    const parts = [
+      `WF: ${weatherFeatureCount}`,
+      `F: ${featureCount}`,
+      `Layers: ${layerCount}`
+    ];
+    if (basemapCount > 0) {
+      parts.push(`Maps: ${basemapCount}`);
+    }
+    parts.push(`Langs: ${languageCount}`);
+    return parts.join(' • ');
+  } catch (e) {
+    return 'Error computing summary';
+  }
 };

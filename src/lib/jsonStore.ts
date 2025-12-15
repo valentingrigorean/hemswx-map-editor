@@ -1,7 +1,7 @@
 import { signal, computed } from '@preact/signals';
-import { MapLayersData, LayerEntry, MapFeature } from './types';
+import { MapLayersData, LayerEntry, MapFeature, BaseMapEntity } from './types';
 import { getDefaultData } from './utils';
-import { recomputeStats, summarizeData } from './parse';
+import { summarizeData } from './parse';
 import { syncTranslations, pruneTranslations } from './intl';
 import { pruneUnusedLayers } from './layers';
 
@@ -14,6 +14,7 @@ export const selectedFeature = signal<{ type: 'weatherFeatures' | 'features' | n
   index: -1
 });
 export const selectedLayer = signal<{ index: number }>({ index: -1 });
+export const selectedBasemap = signal<{ index: number }>({ index: -1 });
 
 // Drafts for preserving unsaved edits by selection
 // Use simple object maps for reactivity (avoid mutating Map in place)
@@ -22,23 +23,14 @@ export const featureDrafts = signal<{
   weatherFeatures: Record<number, MapFeature>;
   features: Record<number, MapFeature>;
 }>({ weatherFeatures: {}, features: {} });
+export const basemapDrafts = signal<Record<number | string, BaseMapEntity>>({});
 
 // UI state signals
-export const activeTab = signal<'workspace' | 'internationalization' | 'json' | 'settings'>('workspace');
+export const activeTab = signal<'workspace' | 'basemaps' | 'json' | 'settings'>('workspace');
 export const activeRightTab = signal<'json' | 'feature' | 'layer'>('json');
-export const activeIntlLang = signal<'en' | 'da' | 'nb' | 'sv'>('en');
-export const selectedTranslationKey = signal<string | null>(null);
-
-// Navigate to translation panel with a specific key selected
-export const navigateToTranslation = (key: string) => {
-  selectedTranslationKey.value = key;
-  activeTab.value = 'internationalization';
-};
-
 
 // Computed values
 export const jsonText = computed(() => JSON.stringify(jsonData.value, null, 2));
-export const dataStats = computed(() => recomputeStats(jsonData.value));
 export const dataSummary = computed(() => summarizeData(jsonData.value));
 
 export const selectedFeatureData = computed(() => {
@@ -54,6 +46,13 @@ export const selectedLayerData = computed(() => {
   if (selection.index < 0) return null;
 
   return jsonData.value.layers[selection.index] || null;
+});
+
+export const selectedBasemapData = computed(() => {
+  const selection = selectedBasemap.value;
+  if (selection.index < 0) return null;
+
+  return jsonData.value.baseMaps?.[selection.index] || null;
 });
 
 // Actions
@@ -80,6 +79,11 @@ export const updateJsonData = (newData: MapLayersData) => {
   const layerSelection = selectedLayer.value;
   if (layerSelection.index >= 0 && layerSelection.index >= newData.layers.length) {
     selectedLayer.value = { index: -1 };
+  }
+
+  const basemapSelection = selectedBasemap.value;
+  if (basemapSelection.index >= 0 && basemapSelection.index >= (newData.baseMaps?.length || 0)) {
+    selectedBasemap.value = { index: -1 };
   }
 };
 
@@ -113,6 +117,10 @@ export const selectLayer = (index: number) => {
   activeRightTab.value = 'layer';
 };
 
+export const selectBasemap = (index: number) => {
+  selectedBasemap.value = { index };
+};
+
 // Draft helpers
 export const getLayerDraft = (key: number | 'new') => layerDrafts.value[key];
 export const setLayerDraft = (key: number | 'new', draft: LayerEntry) => {
@@ -140,6 +148,16 @@ export const clearFeatureDraft = (type: 'weatherFeatures' | 'features', index: n
   const nextType = { ...featureDrafts.value[type] } as any;
   delete nextType[index];
   featureDrafts.value = { ...featureDrafts.value, [type]: nextType };
+};
+
+export const getBasemapDraft = (key: number | 'new') => basemapDrafts.value[key];
+export const setBasemapDraft = (key: number | 'new', draft: BaseMapEntity) => {
+  basemapDrafts.value = { ...basemapDrafts.value, [key]: draft } as any;
+};
+export const clearBasemapDraft = (key: number | 'new') => {
+  const next = { ...basemapDrafts.value } as any;
+  delete next[key];
+  basemapDrafts.value = next;
 };
 
 
@@ -292,4 +310,73 @@ export const updateLayerById = (layerId: string, changes: Partial<LayerEntry>) =
 
 export const getLayerById = (layerId: string): LayerEntry | undefined => {
   return jsonData.value.layers.find(l => l.id === layerId);
+};
+
+// Basemap manipulation actions
+export const deleteBasemapByIndex = (index: number) => {
+  const updated = { ...jsonData.value };
+  updated.baseMaps = (updated.baseMaps || []).filter((_, i) => i !== index);
+  if (updated.baseMaps.length === 0) {
+    delete updated.baseMaps;
+  }
+  updateJsonData(updated);
+
+  const selection = selectedBasemap.value;
+  if (selection.index === index) {
+    selectedBasemap.value = { index: -1 };
+  } else if (selection.index > index) {
+    selectedBasemap.value = { index: selection.index - 1 };
+  }
+
+  setStatus('✅ Basemap deleted');
+};
+
+export const updateBasemapByIndex = (index: number, changes: Partial<BaseMapEntity>) => {
+  const updated = { ...jsonData.value };
+  if (!updated.baseMaps || index < 0 || index >= updated.baseMaps.length) return;
+
+  updated.baseMaps = updated.baseMaps.map((b, i) =>
+    i === index ? { ...b, ...changes } : b
+  );
+  updateJsonData(updated);
+};
+
+export const addBasemap = (basemap: BaseMapEntity) => {
+  const updated = { ...jsonData.value };
+  updated.baseMaps = [...(updated.baseMaps || []), basemap];
+  updateJsonData(updated);
+  setStatus('✅ Basemap added');
+};
+
+export const getBasemapById = (basemapId: string): BaseMapEntity | undefined => {
+  return jsonData.value.baseMaps?.find(b => b.id === basemapId);
+};
+
+export const reorderBasemap = (fromIndex: number, toIndex: number) => {
+  const arr = [...(jsonData.value.baseMaps || [])];
+  if (
+    fromIndex === toIndex ||
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= arr.length ||
+    toIndex >= arr.length
+  ) {
+    return;
+  }
+
+  const [moved] = arr.splice(fromIndex, 1);
+  arr.splice(toIndex, 0, moved);
+
+  const updated = { ...jsonData.value, baseMaps: arr };
+  updateJsonData(updated);
+
+  if (selectedBasemap.value.index === fromIndex) {
+    selectedBasemap.value = { index: toIndex };
+  } else if (fromIndex < selectedBasemap.value.index && selectedBasemap.value.index <= toIndex) {
+    selectedBasemap.value = { index: selectedBasemap.value.index - 1 };
+  } else if (toIndex <= selectedBasemap.value.index && selectedBasemap.value.index < fromIndex) {
+    selectedBasemap.value = { index: selectedBasemap.value.index + 1 };
+  }
+
+  setStatus('✅ Basemap reordered');
 };

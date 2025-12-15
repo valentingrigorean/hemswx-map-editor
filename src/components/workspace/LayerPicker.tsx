@@ -84,7 +84,7 @@ export default function LayerPicker({
       {isOpen.value && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => isOpen.value = false}>
           <div
-            className="bg-slate-800 border border-slate-600 rounded-xl w-[600px] max-w-[90vw] max-h-[80vh] flex flex-col shadow-2xl"
+            className="bg-slate-800 border border-slate-600 rounded-xl w-[600px] max-w-[95vw] min-h-[400px] max-h-[85vh] flex flex-col shadow-2xl"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}

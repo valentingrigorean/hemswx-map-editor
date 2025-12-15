@@ -78,3 +78,4 @@ dist-ssr/
 # Package manager lockfiles (keep package-lock.json but ignore others)
 yarn.lock
 pnpm-lock.yaml
+.gemini-clipboard

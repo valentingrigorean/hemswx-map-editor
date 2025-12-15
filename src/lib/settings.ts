@@ -3,13 +3,15 @@ import { signal, computed } from '@preact/signals';
 export interface AppSettings {
   customLogicLayers: Set<string>;
   nonTranslatableKeys: Set<string>;
+  previewBasemap: string;
 }
 
 const SETTINGS_KEY = 'hemswx-map-editor-settings';
 
 const defaultSettings: AppSettings = {
   customLogicLayers: new Set(['aviation_obstacle']),
-  nonTranslatableKeys: new Set()
+  nonTranslatableKeys: new Set(),
+  previewBasemap: 'gray-vector'
 };
 
 // Load settings from localStorage
@@ -20,7 +22,8 @@ const loadSettings = (): AppSettings => {
       const parsed = JSON.parse(stored);
       return {
         customLogicLayers: new Set(parsed.customLogicLayers || ['aviation_obstacle']),
-        nonTranslatableKeys: new Set(parsed.nonTranslatableKeys || [])
+        nonTranslatableKeys: new Set(parsed.nonTranslatableKeys || []),
+        previewBasemap: parsed.previewBasemap || 'gray-vector'
       };
     }
   } catch (error) {
@@ -34,7 +37,8 @@ const saveSettings = (settings: AppSettings) => {
   try {
     const serializable = {
       customLogicLayers: Array.from(settings.customLogicLayers),
-      nonTranslatableKeys: Array.from(settings.nonTranslatableKeys)
+      nonTranslatableKeys: Array.from(settings.nonTranslatableKeys),
+      previewBasemap: settings.previewBasemap
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(serializable));
   } catch (error) {
@@ -107,3 +111,14 @@ export const toggleNonTranslatableKey = (key: string) => {
     addNonTranslatableKey(key);
   }
 };
+
+// Preview basemap helpers
+export const previewBasemap = computed(() => settings.value.previewBasemap);
+
+export const setPreviewBasemap = (basemapId: string) => {
+  const newSettings = { ...settings.value, previewBasemap: basemapId };
+  settings.value = newSettings;
+  saveSettings(newSettings);
+};
+
+export const getPreviewBasemap = (): string => settings.value.previewBasemap;

@@ -1,5 +1,4 @@
 import { useRef, useEffect } from 'preact/hooks';
-import { useSignal } from '@preact/signals';
 import {
   activeTab,
   dataSummary,
@@ -7,31 +6,22 @@ import {
   setStatus,
   jsonData,
   updateJsonData,
-  loadLastJsonData,
-  selectedTranslationKey
+  loadLastJsonData
 } from './lib/jsonStore';
 import JsonEditor from './components/JsonEditor';
 import WorkspacePanel from './components/WorkspacePanel';
-import StatusBar from './components/StatusBar';
-import I18nTable from './components/I18nTable';
-import TranslationKeysBrowser from './components/TranslationKeysBrowser';
-import TranslationEditorPanel from './components/TranslationEditorPanel';
+import BaseMapsPanel from './components/BaseMapsPanel';
+
 import SettingsPanel from './components/SettingsPanel';
 import EmptyState from './components/EmptyState';
+import Sidebar from './components/Sidebar';
+import '@arcgis/core/assets/esri/themes/dark/main.css';
 import './styles/globals.css';
 import { validateJSON } from './lib/parse';
 import { downloadBlob, extractMapLayersData } from './lib/utils';
 
-const APP_TABS = [
-  { id: 'workspace', label: 'Workspace' },
-  { id: 'internationalization', label: 'Translations' },
-  { id: 'json', label: 'JSON' },
-  { id: 'settings', label: 'Settings' }
-] as const;
-
 function App() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const i18nViewMode = useSignal<'split' | 'table'>('split');
 
   // Auto-load last session on app start
   useEffect(() => {
@@ -62,8 +52,8 @@ function App() {
   };
 
   return (
-    <div className="app">
-      {/* Hidden file input always mounted to support EmptyState open */}
+    <div className="flex h-screen w-screen overflow-hidden bg-slate-900 text-slate-200">
+      {/* Hidden file input */}
       <input 
         ref={fileInputRef as any}
         type="file" 
@@ -92,168 +82,114 @@ function App() {
         }}
       />
 
-      {hasJson.value && (
-        <header
-          className="flex gap-3 items-center p-3 border-b border-slate-700 sticky top-0 z-[5]"
-          style={{ background: 'rgba(15, 17, 21, 0.9)', backdropFilter: 'saturate(1.2) blur(6px)' }}
-        >
-          <h1 className="text-base m-0 mr-2 opacity-95">Map Layers JSON Editor</h1>
-          <button className="btn" onClick={handleLoadFile}>
-            Open JSON…
-          </button>
-          <div className="ml-auto">
-            {hasJson.value && <span className="text-slate-500">{dataSummary.value}</span>}
-          </div>
-        </header>
-      )}
+      {/* Sidebar - only show when we have data */}
+      {hasJson.value && <Sidebar />}
 
-      {!hasJson.value ? (
-        <div className="p-6">
-          <EmptyState onOpenClick={handleLoadFile} />
-        </div>
-      ) : (
-        <div className="p-3 min-h-[calc(100vh-80px)]">
-          {/* App Tabs */}
-          <div className="flex gap-1 mb-3 border-b border-slate-700 pb-2">
-            {APP_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                className={`px-4 py-2 rounded-t-md text-xs transition-all duration-150 text-decoration-none ${
-                  activeTab.value === tab.id
-                    ? 'bg-blue-500 text-white border-blue-500'
-                    : 'bg-slate-950 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
-                }`}
-                onClick={() => (activeTab.value = tab.id as any)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Tab Views */}
-          {/* Unified Workspace - kept mounted to preserve state */}
-          <div
-            className="h-[calc(100vh-180px)]"
-            style={{ display: activeTab.value === 'workspace' ? 'block' : 'none' }}
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        {/* Header */}
+        {hasJson.value && (
+          <header
+            className="flex gap-3 items-center p-3 border-b border-slate-700 bg-slate-900/90 backdrop-blur z-[5] flex-shrink-0"
           >
-            <WorkspacePanel />
-          </div>
+            <h1 className="text-base m-0 mr-2 opacity-95">Map Layers JSON Editor</h1>
+            <button className="btn small" onClick={handleLoadFile}>
+              Open JSON…
+            </button>
+            <div className="ml-auto">
+              {hasJson.value && <span className="text-slate-500 text-xs">{dataSummary.value}</span>}
+            </div>
+          </header>
+        )}
 
-          {/* i18n: view mode toggle and content */}
-          {activeTab.value === 'internationalization' && (
-            <div>
-              {/* View mode toggle */}
-              <div className="flex gap-1 mb-3 border-b border-slate-700 pb-2">
-                <button
-                  className={`px-3 py-1.5 rounded text-xs transition-all duration-150 ${
-                    i18nViewMode.value === 'split'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-800 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
-                  }`}
-                  onClick={() => i18nViewMode.value = 'split'}
-                >
-                  Split View
-                </button>
-                <button
-                  className={`px-3 py-1.5 rounded text-xs transition-all duration-150 ${
-                    i18nViewMode.value === 'table'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-slate-800 text-slate-500 border border-slate-700 hover:border-slate-600 hover:text-slate-200'
-                  }`}
-                  onClick={() => i18nViewMode.value = 'table'}
-                >
-                  Table View
-                </button>
-              </div>
+        {/* Content Views */}
+        <div className="flex-1 overflow-hidden relative">
+          {!hasJson.value ? (
+            <div className="p-6 h-full overflow-auto">
+              <EmptyState onOpenClick={handleLoadFile} />
+            </div>
+          ) : (
+            <>
+              {/* Unified Workspace */}
+              {activeTab.value === 'workspace' && (
+                <div className="h-full w-full">
+                  <WorkspacePanel />
+                </div>
+              )}
 
-              {/* Split view */}
-              {i18nViewMode.value === 'split' && (
-                <div className="flex gap-3 h-[calc(100vh-200px)] overflow-hidden">
-                  <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
-                    <div className="flex-1 min-h-0 overflow-auto">
-                      <TranslationKeysBrowser
-                        selectedKey={selectedTranslationKey.value}
-                        onSelectKey={(key) => (selectedTranslationKey.value = key)}
+              {/* Basemaps Panel */}
+              {activeTab.value === 'basemaps' && (
+                <div className="h-full w-full p-4 overflow-auto">
+                  <BaseMapsPanel />
+                </div>
+              )}
+
+              {/* JSON Editor */}
+              {activeTab.value === 'json' && (
+                <div className="h-full w-full flex flex-col p-4">
+                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col flex-1 overflow-hidden">
+                    <div className="flex-1 min-h-0">
+                      <JsonEditor
+                        title="Complete JSON Configuration"
+                        value={jsonData.value}
+                        onChange={(newData) => {
+                          updateJsonData(newData);
+                          setStatus('✅ JSON updated successfully');
+                        }}
+                        height="100%"
                       />
                     </div>
-                  </div>
-                  <div className="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col">
-                    <TranslationEditorPanel selectedKey={selectedTranslationKey.value} />
+                    
+                    {/* Additional actions */}
+                    <div className="flex gap-2 mt-3 pt-3 border-t border-slate-700 flex-shrink-0">
+                      <button
+                        className="btn small"
+                        onClick={() => {
+                          const validation = validateJSON(JSON.stringify(jsonData.value));
+                          if (validation.valid) {
+                            setStatus('✅ JSON is valid');
+                          } else {
+                            setStatus(`❌ Validation failed: ${validation.errors.length} error(s), ${validation.warnings.length} warning(s)`);
+                          }
+                        }}
+                      >
+                        Validate Structure
+                      </button>
+                      <button
+                        className="btn success small"
+                        onClick={() => {
+                          try {
+                            const jsonString = JSON.stringify(jsonData.value, null, 2);
+                            const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+                            downloadBlob(`map-layers-${timestamp}.json`, jsonString);
+                            setStatus('✅ JSON file downloaded');
+                          } catch (error) {
+                            setStatus('❌ Download failed');
+                          }
+                        }}
+                      >
+                        Download JSON
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* Table view */}
-              {i18nViewMode.value === 'table' && (
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col h-[calc(100vh-200px)]">
-                  <div className="flex-1 min-h-0">
-                    <I18nTable />
+              {/* Settings */}
+              {activeTab.value === 'settings' && (
+                <div className="h-full w-full p-4 overflow-auto">
+                  <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 max-w-4xl mx-auto">
+                    <SettingsPanel />
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* JSON: full editor */}
-          {activeTab.value === 'json' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 flex flex-col h-[calc(100vh-180px)]">
-              <div className="flex-1 min-h-0">
-                <JsonEditor
-                  title="Complete JSON Configuration"
-                  value={jsonData.value}
-                  onChange={(newData) => {
-                    updateJsonData(newData);
-                    setStatus('✅ JSON updated successfully');
-                  }}
-                  height="100%"
-                />
-              </div>
-              
-              {/* Additional actions */}
-              <div className="flex gap-2 mt-3 pt-3 border-t border-slate-700 flex-shrink-0">
-                <button
-                  className="btn small"
-                  onClick={() => {
-                    const validation = validateJSON(JSON.stringify(jsonData.value));
-                    if (validation.valid) {
-                      setStatus('✅ JSON is valid');
-                    } else {
-                      setStatus(`❌ Validation failed: ${validation.errors.length} error(s), ${validation.warnings.length} warning(s)`);
-                    }
-                  }}
-                >
-                  Validate Structure
-                </button>
-                <button
-                  className="btn success small"
-                  onClick={() => {
-                    try {
-                      const jsonString = JSON.stringify(jsonData.value, null, 2);
-                      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
-                      downloadBlob(`map-layers-${timestamp}.json`, jsonString);
-                      setStatus('✅ JSON file downloaded');
-                    } catch (error) {
-                      setStatus('❌ Download failed');
-                    }
-                  }}
-                >
-                  Download JSON
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Settings: single panel */}
-          {activeTab.value === 'settings' && (
-            <div className="bg-slate-800 border border-slate-700 rounded-xl p-3">
-              <SettingsPanel />
-            </div>
+            </>
           )}
         </div>
-      )}
 
-      <StatusBar />
-      
+        {/* Status Bar */}
+  
+      </div>
     </div>
   );
 }

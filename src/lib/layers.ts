@@ -1,8 +1,7 @@
-import { MapLayersData, LayerConfig, LayerEntry } from './types';
+import { MapLayersData, LayerConfig, LayerEntry, LayerType } from './types';
 import { collectReferencedLayerIds } from './utils';
 
-export const LAYER_TYPES = ['wms', 'tiled', 'mapImage', 'portalItem', 'vectorTiled', 'feature'] as const;
-export type LayerType = typeof LAYER_TYPES[number];
+export const LAYER_TYPES: LayerType[] = ['wms', 'tiled', 'mapImage', 'portalItem', 'vectorTiled', 'feature', 'wmts', 'sceneLayer'];
 
 export const getDefaultLayerConfig = (type: LayerType): LayerConfig => {
   const base: LayerConfig = { type, source: '', zIndex: 0, options: { opacity: 1 } };
@@ -19,6 +18,10 @@ export const getDefaultLayerConfig = (type: LayerType): LayerConfig => {
       return { ...base, source: 'https://example.com/arcgis/rest/services/FeatureServer/0' };
     case 'portalItem':
       return { ...base, source: 'portal-item-id', options: { layerId: 0, opacity: 1 } };
+    case 'wmts':
+      return { ...base, source: 'https://example.com/wmts', sourceKind: 'uri' };
+    case 'sceneLayer':
+      return { ...base, source: 'https://example.com/SceneServer', supportedDimensions: ['scene'] };
     default:
       return base;
   }
@@ -32,23 +35,25 @@ export const getDefaultLayerEntry = (id = ''): LayerEntry => ({
 export const validateLayer = (layer: LayerConfig): { valid: boolean; errors: string[] } => {
   const errors: string[] = [];
 
-  if (!LAYER_TYPES.includes(layer.type as LayerType)) {
-    errors.push(`Invalid layer type "${layer.type}". Must be one of: ${LAYER_TYPES.join(', ')}`);
+  const allLayerTypes = [...LAYER_TYPES, 'unknown'];
+  if (!allLayerTypes.includes(layer.type)) {
+    errors.push(`Invalid layer type "${layer.type}". Must be one of: ${allLayerTypes.join(', ')}`);
   }
-  
+
   if (!layer.source || layer.source.trim() === '') {
     errors.push('Layer source is required and cannot be empty');
   } else {
     // Type-specific source validation
-    if (layer.type === 'portalItem') {
+    const isPortalItemSource = layer.type === 'portalItem' || layer.sourceKind === 'portalItem';
+    if (isPortalItemSource) {
       if (layer.source.length < 10 || layer.source.includes(' ')) {
         errors.push('Portal item source should be a valid portal item ID (no spaces, at least 10 characters)');
       }
-    } else if (layer.type !== 'portalItem' && !layer.source.startsWith('http')) {
+    } else if (!layer.source.startsWith('http')) {
       errors.push(`${layer.type.toUpperCase()} layers typically require a URL starting with http:// or https://`);
     }
   }
-  
+
   if (layer.type === 'wms') {
     const layerNames = layer.options?.layerNames;
     if (!layerNames || !Array.isArray(layerNames) || layerNames.length === 0) {

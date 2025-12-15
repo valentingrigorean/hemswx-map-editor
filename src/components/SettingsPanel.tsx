@@ -1,6 +1,7 @@
 import { useComputed } from '@preact/signals';
 import { jsonData } from '../lib/jsonStore';
 import { settings, toggleCustomLogicLayer, isCustomLogicLayer, removeNonTranslatableKey } from '../lib/settings';
+import ArcGISSettingsSection from './settings/ArcGISSettingsSection';
 
 export default function SettingsPanel() {
   const allLayerIds = useComputed(() => {
@@ -20,6 +21,9 @@ export default function SettingsPanel() {
       </div>
 
       <div className="space-y-4">
+        {/* ArcGIS Configuration Section */}
+        <ArcGISSettingsSection />
+
         <div>
           <h4 className="font-medium mb-3">Referenced Layers</h4>
           <p className="text-sm text-slate-400 mb-3">

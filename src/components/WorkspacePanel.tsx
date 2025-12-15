@@ -8,14 +8,15 @@ import {
   setStatus,
   deleteLayerByIndex
 } from '../lib/jsonStore';
-import { MapFeature, MapLayerItem, LayerEntry, LayerConfig } from '../lib/types';
+import { MapFeature, MapLayerItem, LayerEntry, LayerConfig, TreeSelection } from '../lib/types';
 import { upsertLayerEntry } from '../lib/layers';
 import { validateLayerEntry, validateFeature } from '../lib/validation';
 import { autoSyncFeatureTranslations } from '../lib/intl';
-import Navigator, { TreeSelection } from './workspace/Navigator';
+import Navigator from './workspace/Navigator';
 import FeatureEditor from './workspace/FeatureEditor';
 import LayerEditor from './workspace/LayerEditor';
 import QuickLayerModal from './workspace/QuickLayerModal';
+import MapPreviewPanel from './workspace/MapPreviewPanel';
 import ConfirmDialog, { useConfirmDialog } from './ui/ConfirmDialog';
 import Editor from '@monaco-editor/react';
 
@@ -26,6 +27,12 @@ const MIN_NAV_WIDTH = 200;
 const MAX_NAV_WIDTH_PERCENT = 0.4;
 const DEFAULT_NAV_WIDTH = 320;
 const NAV_WIDTH_STORAGE_KEY = 'hemswx-nav-width';
+
+const MIN_PREVIEW_WIDTH = 250;
+const MAX_PREVIEW_WIDTH_PERCENT = 0.4;
+const DEFAULT_PREVIEW_WIDTH = 400;
+const PREVIEW_WIDTH_STORAGE_KEY = 'hemswx-preview-width';
+const PREVIEW_VISIBLE_STORAGE_KEY = 'hemswx-preview-visible';
 
 const getStoredNavWidth = (): number => {
   try {
@@ -46,6 +53,41 @@ const saveNavWidth = (width: number) => {
   } catch {}
 };
 
+const getStoredPreviewWidth = (): number => {
+  try {
+    const stored = localStorage.getItem(PREVIEW_WIDTH_STORAGE_KEY);
+    if (stored) {
+      const width = parseInt(stored, 10);
+      if (!isNaN(width) && width >= MIN_PREVIEW_WIDTH) {
+        return width;
+      }
+    }
+  } catch {}
+  return DEFAULT_PREVIEW_WIDTH;
+};
+
+const savePreviewWidth = (width: number) => {
+  try {
+    localStorage.setItem(PREVIEW_WIDTH_STORAGE_KEY, String(Math.round(width)));
+  } catch {}
+};
+
+const getStoredPreviewVisible = (): boolean => {
+  try {
+    const stored = localStorage.getItem(PREVIEW_VISIBLE_STORAGE_KEY);
+    if (stored !== null) {
+      return stored === 'true';
+    }
+  } catch {}
+  return true;
+};
+
+const savePreviewVisible = (visible: boolean) => {
+  try {
+    localStorage.setItem(PREVIEW_VISIBLE_STORAGE_KEY, String(visible));
+  } catch {}
+};
+
 export default function WorkspacePanel() {
   const mode = useSignal<EditorMode>('none');
   const editorViewMode = useSignal<EditorViewMode>('form');
@@ -56,6 +98,11 @@ export default function WorkspacePanel() {
   const layerCreatorItemIndex = useSignal<number | null>(null);
   const navWidth = useSignal(getStoredNavWidth());
   const isResizing = useSignal(false);
+  const previewWidth = useSignal(getStoredPreviewWidth());
+  const isPreviewResizing = useSignal(false);
+  const showPreview = useSignal(getStoredPreviewVisible());
+  const previewInModal = useSignal(false);
+  const selectedSublayerIndex = useSignal<number | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastAutoSaveRef = useRef<string>('');
 
@@ -138,6 +185,38 @@ export default function WorkspacePanel() {
     document.addEventListener('mouseup', handleMouseUp);
   }, []);
 
+  const handlePreviewMouseDown = useCallback((e: MouseEvent) => {
+    e.preventDefault();
+    isPreviewResizing.value = true;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!containerRef.current) return;
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const maxWidth = containerRect.width * MAX_PREVIEW_WIDTH_PERCENT;
+      const newWidth = Math.min(maxWidth, Math.max(MIN_PREVIEW_WIDTH, containerRect.right - e.clientX));
+      previewWidth.value = newWidth;
+    };
+
+    const handleMouseUp = () => {
+      isPreviewResizing.value = false;
+      savePreviewWidth(previewWidth.value);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, []);
+
+  const togglePreview = useCallback(() => {
+    const next = !showPreview.value;
+    showPreview.value = next;
+    if (!next) {
+      previewInModal.value = false;
+    }
+    savePreviewVisible(next);
+  }, []);
+
   const getFeatureDisplayName = (feature: MapFeature) => {
     if (feature.name?.trim()) return feature.name;
     if (feature.presentation === 'single' && feature.items?.[0]?.name?.trim()) {
@@ -147,13 +226,14 @@ export default function WorkspacePanel() {
   };
 
   // Selection handlers - immediately create draft for editing
-  const handleSelectFeature = (featureType: 'weatherFeatures' | 'features', index: number) => {
+  const handleSelectFeature = (featureType: 'weatherFeatures' | 'features', index: number, itemIndex?: number) => {
     const feature = jsonData.value[featureType]?.[index];
     if (!feature) return;
 
-    treeSelection.value = { type: 'feature', featureType, index };
+    treeSelection.value = { type: 'feature', featureType, index, itemIndex };
     selectFeature(featureType, index);
     mode.value = 'feature';
+    selectedSublayerIndex.value = undefined;
     isNewItem.value = false;
     featureDraft.value = {
       feature: JSON.parse(JSON.stringify(feature)),
@@ -169,15 +249,38 @@ export default function WorkspacePanel() {
     treeSelection.value = { type: 'layer', index };
     selectLayer(index);
     mode.value = 'layer';
+    selectedSublayerIndex.value = undefined;
     isNewItem.value = false;
     layerDraft.value = JSON.parse(JSON.stringify(layer));
     featureDraft.value = null;
+  };
+
+  const handleNewItem = (featureType: 'weatherFeatures' | 'features', index: number) => {
+    // Select the feature first
+    handleSelectFeature(featureType, index);
+    
+    // Add new item to draft
+    if (featureDraft.value) {
+      const items = [...(featureDraft.value.feature.items || [])];
+      items.push({ id: '', name: 'New Item', showLegend: false, layersIds: [] });
+      
+      const updatedFeature = { ...featureDraft.value.feature, items };
+      featureDraft.value = { ...featureDraft.value, feature: updatedFeature };
+      
+      // Auto save
+      autoSaveFeature(updatedFeature);
+      
+      // Select the new item
+      const newItemIndex = items.length - 1;
+      treeSelection.value = { type: 'feature', featureType, index, itemIndex: newItemIndex };
+    }
   };
 
   // New handlers
   const handleNewFeature = (featureType: 'weatherFeatures' | 'features') => {
     mode.value = 'feature';
     isNewItem.value = true;
+    selectedSublayerIndex.value = undefined;
     featureDraft.value = {
       feature: {
         presentation: 'single',
@@ -455,56 +558,22 @@ export default function WorkspacePanel() {
     setStatus('Item removed');
   };
 
-  const handleDeleteLayer = () => {
-    if (treeSelection.value?.type !== 'layer') return;
-    const layer = jsonData.value.layers[treeSelection.value.index];
-    const layerIndex = treeSelection.value.index;
-
-    confirmDialog.confirm({
-      title: 'Delete Layer',
-      message: `Are you sure you want to delete layer "${layer.id}"? This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      variant: 'danger',
-      onConfirm: () => {
-        deleteLayerByIndex(layerIndex);
-        treeSelection.value = null;
-        mode.value = 'none';
-        layerDraft.value = null;
+  const handleDelete = () => {
+    if (mode.value === 'feature') {
+      if (treeSelection.value?.type === 'feature' && treeSelection.value.itemIndex !== undefined) {
+        // Sub-item deletion
+        const feature = jsonData.value[treeSelection.value.featureType][treeSelection.value.index];
+        if (feature && feature.items && feature.items[treeSelection.value.itemIndex]) {
+          const item = feature.items[treeSelection.value.itemIndex];
+          handleRemoveItem(treeSelection.value.itemIndex, item);
+        }
+      } else {
+        // Feature deletion
+        handleDeleteFeature();
       }
-    });
-  };
-
-  // Duplicate handlers
-  const handleDuplicateFeature = () => {
-    if (!featureDraft.value || treeSelection.value?.type !== 'feature') return;
-    const feature = featureDraft.value.feature;
-    mode.value = 'feature';
-    isNewItem.value = true;
-    featureDraft.value = {
-      feature: {
-        ...JSON.parse(JSON.stringify(feature)),
-        id: feature.id ? `${feature.id}_copy` : '',
-        name: feature.name ? `${feature.name} (Copy)` : '',
-        items: feature.items.map(item => ({
-          ...item,
-          id: item.id ? `${item.id}_copy` : '',
-          name: item.name ? `${item.name} (Copy)` : ''
-        }))
-      },
-      featureType: treeSelection.value.featureType
-    };
-    treeSelection.value = null;
-  };
-
-  const handleDuplicateLayer = () => {
-    if (!layerDraft.value) return;
-    mode.value = 'layer';
-    isNewItem.value = true;
-    layerDraft.value = {
-      ...JSON.parse(JSON.stringify(layerDraft.value)),
-      id: `${layerDraft.value.id}_copy`
-    };
-    treeSelection.value = null;
+    } else if (mode.value === 'layer') {
+      handleDeleteLayer();
+    }
   };
 
   // Draft update handlers with auto-save
@@ -577,6 +646,7 @@ export default function WorkspacePanel() {
           onSelectFeature={handleSelectFeature}
           onSelectLayer={handleSelectLayer}
           onNewFeature={handleNewFeature}
+          onNewItem={handleNewItem}
         />
       </div>
 
@@ -641,6 +711,34 @@ export default function WorkspacePanel() {
                 </button>
               </div>
             )}
+            {(mode.value === 'layer' || mode.value === 'feature') && (
+              <div className="flex items-center gap-1 border-l border-slate-600 ml-4 pl-4">
+                <button
+                  className={`px-3 py-1 rounded text-xs transition-colors ${
+                    showPreview.value
+                      ? 'bg-green-600 text-white'
+                      : 'bg-slate-700 text-slate-400 hover:text-slate-200'
+                  }`}
+                  onClick={togglePreview}
+                  title={showPreview.value ? 'Hide map preview' : 'Show map preview'}
+                >
+                  {showPreview.value ? 'Preview On' : 'Preview Off'}
+                </button>
+                {showPreview.value && (
+                  <button
+                    className={`px-3 py-1 rounded text-xs transition-colors ${
+                      previewInModal.value
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700 text-slate-400 hover:text-slate-200'
+                    }`}
+                    onClick={() => previewInModal.value = !previewInModal.value}
+                    title={previewInModal.value ? 'Dock preview in side panel' : 'Open preview in modal'}
+                  >
+                    {previewInModal.value ? 'Dock' : 'Modal'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -653,9 +751,7 @@ export default function WorkspacePanel() {
                   </>
                 ) : (
                   <>
-                    <button className="btn ghost small" onClick={handleCancel}>Revert</button>
-                    <button className="btn ghost small" onClick={handleDuplicateFeature}>Duplicate</button>
-                    <button className="btn danger small" onClick={handleDeleteFeature}>Delete</button>
+                    <button className="btn danger small" onClick={handleDelete}>Delete</button>
                   </>
                 )}
               </>
@@ -669,9 +765,7 @@ export default function WorkspacePanel() {
                   </>
                 ) : (
                   <>
-                    <button className="btn ghost small" onClick={handleCancel}>Revert</button>
-                    <button className="btn ghost small" onClick={handleDuplicateLayer}>Duplicate</button>
-                    <button className="btn danger small" onClick={handleDeleteLayer}>Delete</button>
+                    <button className="btn danger small" onClick={handleDelete}>Delete</button>
                   </>
                 )}
               </>
@@ -706,9 +800,15 @@ export default function WorkspacePanel() {
                   feature={featureDraft.value.feature}
                   featureType={featureDraft.value.featureType}
                   isNew={isNewItem.value}
+                  selectedItemIndex={treeSelection.value?.type === 'feature' ? treeSelection.value.itemIndex : undefined}
                   onUpdate={updateFeatureDraft}
                   onUpdateItem={updateFeatureItem}
                   onRemoveItem={handleRemoveItem}
+                  onSelectItem={(itemIndex) => {
+                    if (treeSelection.value?.type === 'feature') {
+                      treeSelection.value = { ...treeSelection.value, itemIndex };
+                    }
+                  }}
                   onFeatureTypeChange={isNewItem.value ? (type) => {
                     featureDraft.value = { ...featureDraft.value!, featureType: type };
                   } : undefined}
@@ -731,7 +831,7 @@ export default function WorkspacePanel() {
           {editorViewMode.value === 'json' && mode.value !== 'none' && (
             <div className="h-full flex flex-col">
               <div className="text-xs text-slate-400 mb-2">
-                Edit JSON directly. Changes auto-save when valid.
+                Raw JSON view (read-only).
               </div>
               <div className="flex-1 border border-slate-600 rounded overflow-hidden">
                 <Editor
@@ -773,73 +873,8 @@ export default function WorkspacePanel() {
                       ? JSON.stringify(layerDraft.value, null, 2)
                       : '{}'
                   }
-                  onChange={(value: string | undefined) => {
-                    if (!value) return;
-                    try {
-                      const parsed = JSON.parse(value);
-
-                      if (mode.value === 'feature' && featureDraft.value) {
-                        // Handle feature + layers + intl JSON
-                        const newFeature = parsed.feature || parsed;
-                        const newLayers = parsed.layers || [];
-                        const newIntl = parsed.intl;
-
-                        // Update feature draft
-                        featureDraft.value = {
-                          ...featureDraft.value,
-                          feature: newFeature
-                        };
-
-                        // Start with current data
-                        let updated = JSON.parse(JSON.stringify(jsonData.value));
-
-                        // Upsert all layers
-                        newLayers.forEach((layer: LayerEntry) => {
-                          if (layer.id) {
-                            updated = upsertLayerEntry(updated, layer);
-                          }
-                        });
-
-                        // Update intl if provided
-                        if (newIntl) {
-                          if (!updated.intl) {
-                            updated.intl = { en: {}, da: {}, nb: {}, sv: {} };
-                          }
-                          ['en', 'da', 'nb', 'sv'].forEach(lang => {
-                            if (newIntl[lang]) {
-                              if (!updated.intl[lang]) {
-                                updated.intl[lang] = {};
-                              }
-                              Object.assign(updated.intl[lang], newIntl[lang]);
-                            }
-                          });
-                        }
-
-                        // Auto-save feature if valid
-                        const validation = validateFeature(newFeature);
-                        if (validation.valid && treeSelection.value?.type === 'feature' && !isNewItem.value) {
-                          lastAutoSaveRef.current = JSON.stringify(newFeature);
-                          const syncedData = autoSyncFeatureTranslations(updated, newFeature);
-                          const finalData = JSON.parse(JSON.stringify(syncedData));
-                          finalData[treeSelection.value.featureType][treeSelection.value.index] = newFeature;
-                          updateJsonData(finalData);
-                        } else if (newLayers.length > 0 || newIntl) {
-                          // At least save the layers and intl
-                          updateJsonData(updated);
-                        } else {
-                          // No layers or intl, just auto-save feature
-                          autoSaveFeature(newFeature);
-                        }
-                      } else if (mode.value === 'layer' && layerDraft.value) {
-                        // Handle layer JSON
-                        layerDraft.value = parsed;
-                        autoSaveLayer(parsed);
-                      }
-                    } catch {
-                      // Invalid JSON, ignore
-                    }
-                  }}
                   options={{
+                    readOnly: true,
                     minimap: { enabled: false },
                     fontSize: 12,
                     lineNumbers: 'on',
@@ -855,6 +890,65 @@ export default function WorkspacePanel() {
           )}
         </div>
       </div>
+
+      {/* Map Preview Panel (Side) */}
+      {(mode.value === 'layer' || mode.value === 'feature') && showPreview.value && !previewInModal.value && (
+        <>
+          {/* Preview Resize Handle */}
+          <div
+            className={`w-1.5 cursor-col-resize flex-shrink-0 group hover:bg-blue-500/50 transition-colors ${
+              isPreviewResizing.value ? 'bg-blue-500/50' : ''
+            }`}
+            onMouseDown={handlePreviewMouseDown as any}
+          >
+            <div className={`w-0.5 h-full mx-auto ${isPreviewResizing.value ? 'bg-blue-500' : 'bg-transparent group-hover:bg-blue-500'}`} />
+          </div>
+
+          {/* Preview Panel */}
+          <div
+            style={{ width: previewWidth.value }}
+            className="flex-shrink-0 h-full bg-slate-800 border border-slate-700 rounded-xl overflow-hidden ml-1.5"
+          >
+            <MapPreviewPanel
+              layer={mode.value === 'layer' ? layerDraft.value : null}
+              feature={mode.value === 'feature' ? featureDraft.value?.feature : null}
+              selectedSublayerIndex={selectedSublayerIndex.value}
+              mode={mode.value === 'layer' ? 'layer' : 'feature'}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Map Preview (Modal) */}
+      {(mode.value === 'layer' || mode.value === 'feature') && showPreview.value && previewInModal.value && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          onClick={() => previewInModal.value = false}
+        >
+          <div
+            className="bg-slate-800 border border-slate-600 rounded-xl w-[95vw] h-[90vh] max-w-[1400px] flex flex-col shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="p-2 border-b border-slate-700 flex items-center justify-between bg-slate-800/80 flex-shrink-0">
+              <div className="text-sm font-medium text-slate-200">Map Preview</div>
+              <button
+                className="text-slate-400 hover:text-white text-xl leading-none"
+                onClick={() => previewInModal.value = false}
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 min-h-0">
+              <MapPreviewPanel
+                layer={mode.value === 'layer' ? layerDraft.value : null}
+                feature={mode.value === 'feature' ? featureDraft.value?.feature : null}
+                selectedSublayerIndex={selectedSublayerIndex.value}
+                mode={mode.value === 'layer' ? 'layer' : 'feature'}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quick Layer Creator Modal */}
       <QuickLayerModal

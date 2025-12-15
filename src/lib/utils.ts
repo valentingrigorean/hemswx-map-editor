@@ -147,6 +147,7 @@ export const extractMapLayersData = (data: any): MapLayersData => {
       weatherFeatures: mapLayers.weatherFeatures || [],
       features: mapLayers.features || [],
       layers: mapLayers.layers || [],
+      baseMaps: mapLayers.baseMaps,
       intl: mapLayers.intl || { en: {}, da: {}, nb: {}, sv: {} }
     });
   }
@@ -156,6 +157,7 @@ export const extractMapLayersData = (data: any): MapLayersData => {
     weatherFeatures: data.weatherFeatures || [],
     features: data.features || [],
     layers: data.layers || [],
+    baseMaps: data.baseMaps,
     intl: data.intl || { en: {}, da: {}, nb: {}, sv: {} }
   });
 };
@@ -214,10 +216,17 @@ function sanitizeLayerEntry(layer: any): any {
 }
 
 export const sanitizeMapLayersData = (data: MapLayersData): MapLayersData => {
-  return {
+  const result: MapLayersData = {
     weatherFeatures: (data.weatherFeatures || []).map(sanitizeFeature),
     features: (data.features || []).map(sanitizeFeature),
     layers: (data.layers || []).map(sanitizeLayerEntry),
     intl: data.intl || { en: {}, da: {}, nb: {}, sv: {} }
   };
+
+  // Include baseMaps if present (don't sanitize - allow all fields)
+  if (data.baseMaps && Array.isArray(data.baseMaps)) {
+    result.baseMaps = data.baseMaps;
+  }
+
+  return result;
 };

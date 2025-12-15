@@ -1,4 +1,5 @@
 import { useSignal } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
 
 interface TreeItemProps {
   label: string;
@@ -8,8 +9,10 @@ interface TreeItemProps {
   onClick: () => void;
   onDelete?: () => void;
   badges?: Array<{ text: string; color: string }>;
+  actions?: any;
   isDragging?: boolean;
   children?: any;
+  shouldExpand?: boolean;
 }
 
 export default function TreeItem({
@@ -20,16 +23,24 @@ export default function TreeItem({
   onClick,
   onDelete,
   badges = [],
+  actions,
   isDragging = false,
-  children
+  children,
+  shouldExpand
 }: TreeItemProps) {
   const isExpanded = useSignal(false);
   const hasChildren = !!children;
 
+  useEffect(() => {
+    if (shouldExpand) {
+      isExpanded.value = true;
+    }
+  }, [shouldExpand]);
+
   return (
     <div>
       <div
-        className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-all ${
+        className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-all group ${
           isSelected
             ? 'bg-blue-600 text-white'
             : 'hover:bg-slate-700 text-slate-300'
@@ -50,8 +61,13 @@ export default function TreeItem({
           <div className="text-sm truncate">{label || '(unnamed)'}</div>
           {sublabel && <div className="text-xs text-slate-500 truncate">{sublabel}</div>}
         </div>
+        {actions && (
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
+            {actions}
+          </div>
+        )}
         {badges.map((badge, i) => (
-          <span key={i} className={`text-xs px-1.5 py-0.5 rounded ${badge.color}`}>{badge.text}</span>
+          <span key={i} className={`text-sm ${badge.color}`}>{badge.text}</span>
         ))}
         {onDelete && (
           <button

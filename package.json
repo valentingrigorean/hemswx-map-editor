@@ -10,6 +10,9 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
+    "@arcgis/core": "^4.34.8",
+    "@arcgis/map-components": "^4.34.9",
+    "@esri/calcite-components": "^3.3.3",
     "@monaco-editor/react": "^4.7.0",
     "@preact/signals": "^1.2.2",
     "monaco-editor": "^0.52.2",
@@ -24,7 +27,8 @@
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.3.3",
-    "vite": "^5.0.12"
+    "vite": "^5.0.12",
+    "vite-plugin-static-copy": "^3.1.4"
   },
   "repository": {
     "type": "git",
